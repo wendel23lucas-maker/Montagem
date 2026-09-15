@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Aderência — Montagem</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="ícones/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="ícones/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="ícones/apple-touch-icon.png">
+<meta name="theme-color" content="#1F5673">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aderência">
+<script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+<style>
+  :root{
+    --bg:#F2F4F7;
+    --surface:#FFFFFF;
+    --border:#E1E5EB;
+    --ink:#131B2E;
+    --ink-soft:#5B6472;
+    --ink-faint:#8992A3;
+    --steel:#1F5673;
+    --steel-soft:#4C86A3;
+    --good:#1E8A5F;
+    --good-bg:#E7F4EE;
+    --bad:#B3401E;
+    --bad-bg:#FBEAE4;
+    --amber:#C08A1E;
+    --line:#D6DBE2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 24px 60px;}
+
+  header{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    gap:20px;flex-wrap:wrap;
+    padding-bottom:18px;margin-bottom:18px;
+    border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:26px;letter-spacing:-0.01em;margin:0 0 4px;font-weight:700;color:var(--ink);}
+  header .sub{color:var(--ink-soft);font-size:14.5px;margin:0;}
+  header .sub b{color:var(--ink);font-weight:600;}
+
+  .upload-zone{position:relative;display:inline-flex;}
+  .upload-btn{
+    width:40px;height:40px;flex:none;
+    background:var(--steel);color:#fff;border:none;
+    border-radius:50%;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:background .15s ease, transform .15s ease;
+    position:relative;
+  }
+  .upload-btn:hover{background:#164257;transform:scale(1.05);}
+  .upload-btn svg{width:17px;height:17px;flex:none;}
+  .upload-btn .sync-dot{
+    position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:50%;
+    background:var(--ink-faint);border:2px solid var(--bg);display:none;
+  }
+  .upload-btn .sync-dot.cloud{background:var(--good);display:block;}
+  .upload-btn .sync-dot.local{background:var(--amber);display:block;}
+  #fileInput{display:none;}
+
+  /* Painel que aparece ao passar o mouse sobre o botão de upload */
+  .upload-panel{
+    position:absolute;top:calc(100% + 10px);right:0;z-index:50;
+    min-width:250px;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 10px 28px rgba(19,27,46,0.14);
+    padding:12px 14px;
+    opacity:0;visibility:hidden;transform:translateY(-6px);
+    transition:opacity .15s ease, transform .15s ease, visibility .15s;
+  }
+  .upload-zone:hover .upload-panel,
+  .upload-zone:focus-within .upload-panel{opacity:1;visibility:visible;transform:translateY(0);}
+  .upload-panel .panel-title{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 6px;display:flex;align-items:center;gap:7px;}
+  .upload-status{font-size:12.5px;color:var(--ink-faint);line-height:1.5;display:block;}
+  .upload-status.err{color:var(--bad);}
+  .upload-status.ok{color:var(--good);}
+  #syncBadge{margin-top:5px;padding-top:7px;border-top:1px solid var(--line);}
+  #syncBadge:empty{display:none;margin:0;padding:0;border:none;}
+
+  /* ---------- Toolbar: tabs + date filter ---------- */
+  .toolbar{
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    margin-bottom:20px;
+  }
+  .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:3px;}
+  .tab-btn{
+    border:none;background:transparent;padding:8px 16px;border-radius:7px;font-size:13.5px;
+    font-weight:600;color:var(--ink-soft);cursor:pointer;transition:all .15s ease;
+  }
+  .tab-btn.active{background:var(--steel);color:#fff;}
+  .tab-btn:not(.active):hover{background:#F0F2F5;color:var(--ink);}
+
+  .date-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:7px 10px;}
+  .date-filter label{font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .date-filter input[type=date]{
+    border:1px solid var(--border);border-radius:6px;padding:5px 7px;font-size:12.5px;color:var(--ink);
+    background:#FBFBFC;font-family:inherit;
+  }
+  .date-filter .reset-btn{
+    border:none;background:none;color:var(--steel);font-size:12.5px;font-weight:600;cursor:pointer;
+    padding:5px 6px;border-radius:6px;
+  }
+  .date-filter .reset-btn:hover{background:#EEF3F5;}
+  .date-filter .range-note{font-size:11.5px;color:var(--ink-faint);}
+
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* ---------- KPI row ---------- */
+  .kpi-sticky{
+    position:sticky;top:0;z-index:40;
+    background:var(--bg);
+    padding:14px 0 16px;
+    margin:-14px 0 6px;
+  }
+  .kpi-sticky::after{
+    content:'';position:absolute;left:-24px;right:-24px;bottom:0;height:1px;
+    background:var(--line);
+  }
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 16px 14px;position:relative;overflow:hidden;}
+  .kpi .label{font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;font-weight:600;}
+  .kpi .value{font-size:26px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:var(--ink);}
+  .kpi .value small{font-size:14px;font-weight:600;color:var(--ink-faint);margin-left:2px;}
+  .kpi .delta{font-size:12.5px;margin-top:7px;font-weight:600;}
+  .kpi .delta.good{color:var(--good);}
+  .kpi .delta.bad{color:var(--bad);}
+  .kpi .delta.neutral{color:var(--ink-faint);}
+  .kpi .bar-track{height:5px;background:var(--line);border-radius:3px;margin-top:11px;overflow:hidden;}
+  .kpi .bar-fill{height:100%;border-radius:3px;}
+
+  .insight{
+    display:flex;gap:12px;align-items:flex-start;
+    background:var(--bad-bg);border:1px solid #EBC9BA;border-radius:10px;
+    padding:14px 16px;margin-bottom:22px;
+  }
+  .insight.good{background:var(--good-bg);border-color:#BFE3D2;}
+  .insight .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);margin-top:5px;flex:none;}
+  .insight.good .dot{background:var(--good);}
+  .insight p{margin:0;font-size:14px;line-height:1.55;color:var(--ink);}
+  .insight p b{font-weight:700;}
+  .insight .tag{font-size:11px;font-weight:700;color:var(--bad);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;}
+  .insight.good .tag{color:var(--good);}
+
+  /* ---------- Análise automática embaixo de cada gráfico ---------- */
+  .chart-analysis{
+    margin-top:14px;padding:12px 14px;border-radius:8px;
+    background:#FBFBFC;border:1px solid var(--border);
+    font-size:13px;line-height:1.55;color:var(--ink-soft);
+  }
+  .chart-analysis:empty{display:none;}
+  .chart-analysis b{color:var(--ink);font-weight:700;}
+  .chart-analysis .tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px;color:var(--steel);}
+  .chart-analysis.crit .tag{color:var(--bad);}
+  .chart-analysis.warn .tag{color:var(--amber);}
+  .chart-analysis.good .tag{color:var(--good);}
+
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px 18px;margin-bottom:18px;}
+  .section-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .section-head h2{font-size:15.5px;margin:0;font-weight:700;color:var(--ink);}
+  .section-head .meta-note{font-size:12.5px;color:var(--ink-faint);}
+  .head-right{display:flex;align-items:center;gap:12px;}
+  .legend-inline{display:flex;gap:6px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap;}
+  .legend-btn{
+    display:flex;align-items:center;gap:6px;border:1px solid transparent;background:none;
+    padding:4px 8px;border-radius:6px;font-size:12px;color:var(--ink-soft);cursor:pointer;
+    font-family:inherit;transition:all .15s ease;
+  }
+  .legend-btn i{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none;}
+  .legend-btn:hover{background:#F0F2F5;}
+  .legend-btn.off{color:var(--ink-faint);opacity:.55;}
+  .legend-btn.off i{opacity:.4;}
+  .legend-btn.active{background:#EEF3F5;border-color:var(--border);font-weight:600;color:var(--ink);}
+
+  .expand-btn{
+    width:26px;height:26px;flex:none;padding:0;border-radius:6px;border:1px solid var(--border);
+    background:#FBFBFC;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s ease;
+  }
+  .expand-btn svg{width:14px;height:14px;}
+  .expand-btn:hover{background:var(--steel);border-color:var(--steel);color:#fff;}
+
+  .chart-modal{
+    display:none;position:fixed;inset:0;background:rgba(19,27,46,0.55);z-index:1000;
+    align-items:center;justify-content:center;padding:24px;
+  }
+  .chart-modal.open{display:flex;}
+  .chart-modal-inner{
+    background:var(--surface);border-radius:12px;max-width:min(1200px,96vw);width:100%;
+    max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);
+  }
+  .chart-modal-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 20px;border-bottom:1px solid var(--line);flex:none;
+  }
+  .chart-modal-head h3{margin:0;font-size:16px;font-weight:700;color:var(--ink);}
+  .chart-modal-close{
+    width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:#FBFBFC;
+    color:var(--ink-soft);cursor:pointer;font-size:14px;line-height:1;
+  }
+  .chart-modal-close:hover{background:#F0F2F5;color:var(--ink);}
+  .chart-modal-body{padding:22px 24px 26px;overflow:auto;flex:1;}
+  .chart-modal-body svg{display:block;width:100%;height:auto;}
+
+  .grid-2{display:grid;grid-template-columns:1.05fr 0.95fr;gap:18px;}
+
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;}
+  .chip{border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:12.5px;display:flex;flex-direction:column;gap:3px;min-width:118px;}
+  .chip .chip-label{color:var(--ink-soft);font-weight:600;}
+  .chip .chip-val{font-size:16px;font-weight:700;color:var(--ink);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-size:11.5px;color:var(--ink-faint);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  thead th.num, td.num{text-align:right;}
+  tbody td{padding:8px 10px;border-bottom:1px solid #EEF0F3;color:var(--ink);white-space:nowrap;}
+  tbody tr:hover{background:#FAFBFC;}
+  .cell-name{font-weight:600;}
+  .seg-tag{font-size:10.5px;padding:2px 6px;border-radius:5px;font-weight:700;margin-left:7px;background:#EEF1F5;color:var(--ink-soft);}
+  .ader-pill{display:inline-block;padding:2px 8px;border-radius:20px;font-weight:700;font-size:12px;}
+  .table-scroll{max-height:420px;overflow-y:auto;border-radius:8px;}
+  .table-scroll thead th{position:sticky;top:0;background:var(--surface);}
+
+  .table-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+  .search-input{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--ink);background:#FBFBFC;}
+  .search-input:focus{outline:none;border-color:var(--steel-soft);background:#fff;}
+  .select-input{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink);background:#FBFBFC;}
+  .result-count{font-size:12px;color:var(--ink-faint);white-space:nowrap;}
+
+  .chart-box svg{display:block;width:100%;height:auto;}
+  .empty-note{color:var(--ink-faint);font-size:13px;padding:20px 0;text-align:center;}
+
+  /* ---------- Tooltip customizado dos gráficos ---------- */
+  #chartTooltip{
+    position:fixed;z-index:2000;pointer-events:none;
+    background:var(--ink);color:#fff;font-size:12.5px;line-height:1.45;
+    padding:8px 11px;border-radius:8px;box-shadow:0 10px 28px rgba(19,27,46,0.28);
+    max-width:240px;opacity:0;
+    transform:translate(-50%,calc(-100% - 12px)) scale(.96);
+    transition:opacity .12s ease, transform .12s ease;
+  }
+  #chartTooltip.show{opacity:1;transform:translate(-50%,calc(-100% - 12px)) scale(1);}
+  #chartTooltip b{color:#fff;font-weight:700;}
+  #chartTooltip .tip-sub{color:#C3CAD4;font-size:11.5px;margin-top:2px;}
+
+  /* ---------- Interatividade e animação de entrada dos gráficos ---------- */
+  .chart-box svg [data-tip]{cursor:pointer;transition:opacity .18s ease, filter .18s ease;}
+  .chart-box svg [data-tip].is-dim{opacity:.32;}
+  .chart-box svg [data-tip].is-hover{filter:brightness(1.18);}
+  .chart-box svg .grow-w{transition:width .7s cubic-bezier(.16,.84,.44,1);}
+  .chart-box svg .grow-line{transition:stroke-dashoffset .7s cubic-bezier(.16,.84,.44,1);}
+  .chart-box svg .fade-in{transition:opacity .5s ease;}
+  .kpi .bar-fill{transition:width .8s cubic-bezier(.16,.84,.44,1);}
+
+  footer{margin-top:8px;text-align:center;color:var(--ink-faint);font-size:12px;}
+
+  @media (max-width:920px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+    .toolbar{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+<div id="chartTooltip"></div>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Painel de Aderência — Montagem</h1>
+      <p class="sub">Período de referência: <b id="periodoLabel">—</b> · dados por célula e por item</p>
+    </div>
+    <div class="upload-zone" tabindex="0">
+      <label class="upload-btn" for="fileInput" title="Carregar nova planilha">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="sync-dot" id="syncDot"></span>
+      </label>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm">
+      <div class="upload-panel">
+        <p class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Carregar nova planilha
+        </p>
+        <span class="upload-status" id="uploadStatus">Exibindo dados de Setembro/2026</span>
+        <span class="upload-status" id="syncBadge" style="color:var(--ink-faint);"></span>
+      </div>
+    </div>
+  </header>
+
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="geral">Visão geral</button>
+      <button class="tab-btn" data-tab="detalhe">Detalhamento</button>
+    </div>
+    <div class="date-filter">
+      <label>De</label>
+      <input type="date" id="dateFrom">
+      <label>Até</label>
+      <input type="date" id="dateTo">
+      <button class="reset-btn" id="dateReset">Limpar</button>
+      <span class="range-note" id="rangeNote"></span>
+    </div>
+  </div>
+
+  <!-- ===================== TAB: VISÃO GERAL ===================== -->
+  <div class="tab-panel active" id="tab-geral">
+
+    <div class="kpi-sticky">
+      <div class="kpis" id="kpiRow"></div>
+    </div>
+
+    <div class="insight" id="insightBanner">
+      <div class="dot"></div>
+      <p id="insightText"></p>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Aderência diária vs. meta</h2>
+        <div class="head-right">
+          <div class="legend-inline" id="trendLegend">
+            <button class="legend-btn active" data-toggle="above"><i style="background:#1E8A5F"></i>Acima da meta</button>
+            <button class="legend-btn active" data-toggle="below"><i style="background:#B3401E"></i>Abaixo da meta</button>
+            <button class="legend-btn" data-toggle="prod"><i style="background:#C08A1E"></i>Produtividade</button>
+            <button class="legend-btn active" data-toggle="meta"><i style="background:#B0B6BF"></i>Meta</button>
+          </div>
+          <button class="expand-btn" data-chart="trendChart" data-title="Aderência diária vs. meta" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+        </div>
+      </div>
+      <div class="chart-box" id="trendChart"></div>
+      <div class="chart-analysis" id="trendAnalysis"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-head">
+          <h2>Aderência por dia da semana</h2>
+          <div class="head-right">
+            <span class="meta-note">média do período</span>
+            <button class="expand-btn" data-chart="weekdayChart" data-title="Aderência por dia da semana" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+          </div>
+        </div>
+        <div class="chart-box" id="weekdayChart"></div>
+        <div class="chart-analysis" id="weekdayAnalysis"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Distribuição das células por faixa de aderência</h2>
+          <div class="head-right">
+            <span class="meta-note">quantidade de células</span>
+            <button class="expand-btn" data-chart="bandChart" data-title="Distribuição das células por faixa de aderência" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+          </div>
+        </div>
+        <div class="chart-box" id="bandChart"></div>
+        <div class="chart-analysis" id="bandAnalysis"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-head">
+          <h2>Maiores déficits de produção por célula</h2>
+          <div class="head-right">
+            <span class="meta-note">peças não realizadas, top 10</span>
+            <button class="expand-btn" data-chart="gapChart" data-title="Maiores déficits de produção por célula" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+          </div>
+        </div>
+        <div class="chart-box" id="gapChart"></div>
+        <div class="chart-analysis" id="gapAnalysis"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Aderência por segmento</h2>
+          <div class="head-right">
+            <span class="meta-note">planejado x realizado</span>
+            <button class="expand-btn" data-chart="segChart" data-title="Aderência por segmento" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+          </div>
+        </div>
+        <div class="chips" id="segChips"></div>
+        <div class="chart-box" id="segChart" style="margin-top:16px;"></div>
+        <div class="chart-analysis" id="segAnalysis"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Maiores déficits por item</h2>
+        <div class="head-right">
+          <span class="meta-note">peças não realizadas, top 10</span>
+          <button class="expand-btn" data-chart="itemGapChart" data-title="Maiores déficits por item" title="Expandir gráfico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+        </div>
+      </div>
+      <div class="chart-box" id="itemGapChart"></div>
+      <div class="chart-analysis" id="itemGapAnalysis"></div>
+    </div>
+
+  </div>
+
+  <!-- ===================== MODAL: gráfico expandido ===================== -->
+  <div class="chart-modal" id="chartModal">
+    <div class="chart-modal-inner">
+      <div class="chart-modal-head">
+        <h3 id="chartModalTitle"></h3>
+        <button class="chart-modal-close" id="chartModalClose">✕</button>
+      </div>
+      <div class="chart-modal-body" id="chartModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL: detalhamento por célula/item/segmento ===================== -->
+  <div class="chart-modal" id="detailModal">
+    <div class="chart-modal-inner">
+      <div class="chart-modal-head">
+        <h3 id="detailModalTitle"></h3>
+        <button class="chart-modal-close" id="detailModalClose">✕</button>
+      </div>
+      <div class="chart-modal-body" id="detailModalBody"></div>
+    </div>
+  </div>
+
+
+  <!-- ===================== TAB: DETALHAMENTO ===================== -->
+  <div class="tab-panel" id="tab-detalhe">
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Detalhamento por célula</h2>
+        <span class="meta-note" id="tableNote">todas as células do período</span>
+      </div>
+      <div class="table-controls">
+        <input type="text" class="search-input" id="celSearch" placeholder="Buscar por célula…">
+        <span class="result-count" id="celResultCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Célula</th>
+              <th class="num">Planejado</th>
+              <th class="num">Realizado</th>
+              <th class="num">Aderência</th>
+              <th class="num">Perda (peças)</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Detalhamento por item</h2>
+        <span class="meta-note" id="itemTableNote">todos os itens do período</span>
+      </div>
+      <div class="table-controls">
+        <input type="text" class="search-input" id="itemSearch" placeholder="Buscar por item ou célula…">
+        <select class="select-input" id="itemCelulaFilter"><option value="">Todas as células</option></select>
+        <span class="result-count" id="itemResultCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Célula</th>
+              <th class="num">Planejado</th>
+              <th class="num">Realizado</th>
+              <th class="num">Aderência</th>
+              <th class="num">Perda (peças)</th>
+            </tr>
+          </thead>
+          <tbody id="itemTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Observações</h2>
+        <span class="meta-note" id="obsTableNote">lançamentos com observação no intervalo</span>
+      </div>
+      <div class="table-controls">
+        <input type="text" class="search-input" id="obsSearch" placeholder="Buscar por célula, item ou texto da observação…">
+        <span class="result-count" id="obsResultCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Célula</th>
+              <th>Item</th>
+              <th class="num">Planejado</th>
+              <th class="num">Realizado</th>
+              <th class="num">Aderência</th>
+              <th>Observação</th>
+            </tr>
+          </thead>
+          <tbody id="obsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Fonte: planilha de controle de aderência de montagem · atualize os dados enviando um novo arquivo .xlsx acima</footer>
+
+</div>
+
+<script>
+/* ============================================================
+   DADOS BRUTOS EMBUTIDOS (referência: Setembro/2026)
+   registros = 1 linha por lançamento (data, célula, segmento, item, planejado, realizado, obs)
+   trend     = 1 linha por dia (indicadores já agregados da aba "Aderência")
+   ============================================================ */
+const RAW_DEFAULT = {"registros": [{"data": "2026-09-01", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 2822.0, "realizado": 2160.0, "obs": "Operador em treinamento"}, {"data": "2026-09-01", "celula": "ARLA", "segmento": "OEM", "item": "CC-1063-16", "planejado": 468.0, "realizado": 560.0, "obs": ""}, {"data": "2026-09-01", "celula": "RADIADOR", "segmento": "AM", "item": "TC-7018/2", "planejado": 504.0, "realizado": 0.0, "obs": "Falta operador"}, {"data": "2026-09-01", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-908-01", "planejado": 240.0, "realizado": 280.0, "obs": ""}, {"data": "2026-09-01", "celula": "TAMPAS", "segmento": "AM", "item": "TC-5001-S/1", "planejado": 1000.0, "realizado": 300.0, "obs": "Foi produzido apenas para suprir a urgência"}, {"data": "2026-09-01", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-819-06", "planejado": 260.0, "realizado": 260.0, "obs": ""}, {"data": "2026-09-01", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-711-01", "planejado": 568.0, "realizado": 120.0, "obs": "Falta operador"}, {"data": "2026-09-01", "celula": "RESERVATÓRIO", "segmento": "OEM", "item": "CC-1117-16", "planejado": 576.0, "realizado": 0.0, "obs": "máquina não foi liberada para produção"}, {"data": "2026-09-01", "celula": "OLEO", "segmento": "AM", "item": "TC-9120-06", "planejado": 3250.0, "realizado": 1500.0, "obs": "Tempo está errado"}, {"data": "2026-09-01", "celula": "PSA", "segmento": "OEM", "item": "CC-1108-01", "planejado": 1600.0, "realizado": 1280.0, "obs": "operador de treinamento"}, {"data": "2026-09-01", "celula": "UP / MQB", "segmento": "OEM", "item": "CC-1111-56", "planejado": 240.0, "realizado": 840.0, "obs": ""}, {"data": "2026-09-01", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1068-06", "planejado": 1000.0, "realizado": 980.0, "obs": ""}, {"data": "2026-09-01", "celula": "OLEO", "segmento": "AM", "item": "TC-3050/1", "planejado": 2200.0, "realizado": 500.0, "obs": "Falta operador"}, {"data": "2026-09-01", "celula": "ÁGUA", "segmento": "AM", "item": "SB-412", "planejado": 1050.0, "realizado": 1050.0, "obs": ""}, {"data": "2026-09-01", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-538", "planejado": 4680.0, "realizado": 4500.0, "obs": ""}, {"data": "2026-09-02", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 2822.0, "realizado": 3150.0, "obs": ""}, {"data": "2026-09-02", "celula": "ARLA", "segmento": "OEM", "item": "CC-1063-06", "planejado": 280.0, "realizado": 280.0, "obs": ""}, {"data": "2026-09-02", "celula": "ARLA", "segmento": "AM", "item": "TC-1026/1", "planejado": 239.0, "realizado": 91.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-711-01", "planejado": 1000.0, "realizado": 1200.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1104-06", "planejado": 80.0, "realizado": 80.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1104-16", "planejado": 426.0, "realizado": 160.0, "obs": ""}, {"data": "2026-09-02", "celula": "RESERVATÓRIO", "segmento": "OEM", "item": "CC-1117-16", "planejado": 576.0, "realizado": 450.0, "obs": ""}, {"data": "2026-09-02", "celula": "GALEJANTE", "segmento": "OEM", "item": "CC-1052-06", "planejado": 3150.0, "realizado": 3600.0, "obs": ""}, {"data": "2026-09-02", "celula": "ÁGUA", "segmento": "AM", "item": "TC-9300/2", "planejado": 1821.0, "realizado": 1821.0, "obs": ""}, {"data": "2026-09-02", "celula": "ÁGUA", "segmento": "AM", "item": "TC-3061/2", "planejado": 3793.0, "realizado": 3793.0, "obs": ""}, {"data": "2026-09-02", "celula": "ÁGUA", "segmento": "AM", "item": "TC-3062/2", "planejado": 1324.0, "realizado": 4024.0, "obs": ""}, {"data": "2026-09-02", "celula": "OLEO", "segmento": "AM", "item": "TC-9120-06", "planejado": 3250.0, "realizado": 1500.0, "obs": ""}, {"data": "2026-09-02", "celula": "PSA", "segmento": "OEM", "item": "CC-1108-01", "planejado": 240.0, "realizado": 240.0, "obs": ""}, {"data": "2026-09-02", "celula": "ÁGUA", "segmento": "AM", "item": "CC-1127-06", "planejado": 1920.0, "realizado": 946.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-538", "planejado": 1535.0, "realizado": 1715.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPOGRAFIA", "segmento": "AM", "item": "TA-427", "planejado": 2000.0, "realizado": 2000.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-559", "planejado": 1000.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-02", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-287", "planejado": 1000.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1335/1", "planejado": 400.0, "realizado": 3012.0, "obs": ""}, {"data": "2026-09-03", "celula": "RADIADOR", "segmento": "OEM", "item": "CC-584-06", "planejado": 800.0, "realizado": 800.0, "obs": ""}, {"data": "2026-09-03", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-894-06", "planejado": 250.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "VALVULADA", "segmento": "OEM", "item": "CC-138-06", "planejado": 200.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "RADIADOR", "segmento": "OEM", "item": "CC-797-06", "planejado": 200.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 2822.0, "realizado": 2430.0, "obs": ""}, {"data": "2026-09-03", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1127-06", "planejado": 4250.0, "realizado": 4597.0, "obs": ""}, {"data": "2026-09-03", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 3591.0, "realizado": 2000.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-4050/1", "planejado": 1532.0, "realizado": 800.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-5026/1", "planejado": 600.0, "realizado": 600.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-4055/1", "planejado": 1000.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-5001-S/1", "planejado": 700.0, "realizado": 700.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-819-01", "planejado": 320.0, "realizado": 320.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-1027/1", "planejado": 272.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1105-01", "planejado": 1080.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-03", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-793-06", "planejado": 600.0, "realizado": 600.0, "obs": ""}, {"data": "2026-09-03", "celula": "UP / MQB", "segmento": "AM", "item": "TC-3112-S/1", "planejado": 50.0, "realizado": 20.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9120/1", "planejado": 300.0, "realizado": 300.0, "obs": ""}, {"data": "2026-09-03", "celula": "VALVULADA", "segmento": "AM", "item": "TC-3099/1", "planejado": 150.0, "realizado": 150.0, "obs": ""}, {"data": "2026-09-03", "celula": "VALVU INTE", "segmento": "AM", "item": "SB-585", "planejado": 2070.0, "realizado": 507.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-287", "planejado": 1845.0, "realizado": 1349.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-330", "planejado": 1000.0, "realizado": 1280.0, "obs": ""}, {"data": "2026-09-03", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-555", "planejado": 1001.0, "realizado": 1500.0, "obs": ""}, {"data": "2026-09-04", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1127-06", "planejado": 3750.0, "realizado": 2143.0, "obs": "Sem operador no 2° Turno"}, {"data": "2026-09-04", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 5985.0, "realizado": 4800.0, "obs": "Verificar porq não foi entregue o planejado"}, {"data": "2026-09-04", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-512-06", "planejado": 750.0, "realizado": 0.0, "obs": "Verificar se foi realizado algum volume"}, {"data": "2026-09-04", "celula": "ARLA", "segmento": "OEM", "item": "CC-1097-01", "planejado": 144.0, "realizado": 180.0, "obs": "OK"}, {"data": "2026-09-04", "celula": "PSA", "segmento": "OEM", "item": "CC-1108-01", "planejado": 672.0, "realizado": 800.0, "obs": "OK"}, {"data": "2026-09-04", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1105-01", "planejado": 1704.0, "realizado": 1240.0, "obs": "Verificar porq não foi entregue o planejado"}, {"data": "2026-09-04", "celula": "AMAZON", "segmento": "AM", "item": "TC-9016-S/1", "planejado": 90.0, "realizado": 90.0, "obs": "OK"}, {"data": "2026-09-04", "celula": "TAMPAS", "segmento": "AM", "item": "TC-3204/1", "planejado": 50.0, "realizado": 50.0, "obs": "OK"}, {"data": "2026-09-04", "celula": "VALVULADA", "segmento": "AM", "item": "TC-3100/1", "planejado": 530.0, "realizado": 350.0, "obs": "Verificar porq não foi entregue o planejado"}, {"data": "2026-09-04", "celula": "RESERVATÓRIO", "segmento": "OEM", "item": "CC-1117-16", "planejado": 512.0, "realizado": 0.0, "obs": "Sem operadorcom experiencia para porduzir o item"}, {"data": "2026-09-04", "celula": "VALVU INTE", "segmento": "AM", "item": "SB-585", "planejado": 1840.0, "realizado": 1486.0, "obs": "Verificar porq não foi entregue o planejado"}, {"data": "2026-09-08", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1335/1", "planejado": 400.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-08", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 2822.0, "realizado": 2520.0, "obs": ""}, {"data": "2026-09-08", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1127-06", "planejado": 2250.0, "realizado": 2024.0, "obs": ""}, {"data": "2026-09-08", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-559", "planejado": 1000.0, "realizado": 1000.0, "obs": ""}, {"data": "2026-09-08", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 6650.0, "realizado": 4800.0, "obs": "Máquina quebrou as 10:20 retornou so as 16h"}, {"data": "2026-09-08", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-512-06", "planejado": 750.0, "realizado": 750.0, "obs": ""}, {"data": "2026-09-08", "celula": "VALVULADA", "segmento": "OEM", "item": "CC-138-06", "planejado": 250.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-08", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-894-06", "planejado": 200.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-08", "celula": "UP / MQB", "segmento": "OEM", "item": "CC-1111-56", "planejado": 990.0, "realizado": 840.0, "obs": ""}, {"data": "2026-09-08", "celula": "OLEO MX", "segmento": "OEM", "item": "CC-1100-06", "planejado": 2500.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-08", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1105-01", "planejado": 1500.0, "realizado": 1160.0, "obs": ""}, {"data": "2026-09-08", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-711-01", "planejado": 418.90000000000003, "realizado": 160.0, "obs": ""}, {"data": "2026-09-08", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9130-06", "planejado": 4023.0, "realizado": 3000.0, "obs": ""}, {"data": "2026-09-08", "celula": "RESERVATÓRIO", "segmento": "OEM", "item": "CC-1117-16", "planejado": 450.0, "realizado": 450.0, "obs": ""}, {"data": "2026-09-09", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1333", "planejado": 3480.0, "realizado": 2550.0, "obs": "Verificando apontamento | Foi produzido DV-1335/1 até as 12h"}, {"data": "2026-09-09", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 1494.0, "realizado": 1530.0, "obs": "Foi redirecionada os operadores do 2° turno"}, {"data": "2026-09-09", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1127-06", "planejado": 2250.0, "realizado": 2552.0, "obs": ""}, {"data": "2026-09-09", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-1106-06", "planejado": 500.0, "realizado": 500.0, "obs": ""}, {"data": "2026-09-09", "celula": "ARLA", "segmento": "OEM", "item": "CC-1063-16", "planejado": 420.0, "realizado": 420.0, "obs": ""}, {"data": "2026-09-09", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 6783.0, "realizado": 6400.0, "obs": "Máquina quebrou a esteira as 15:30"}, {"data": "2026-09-09", "celula": "UP / MQB", "segmento": "OEM", "item": "CC-1111-56", "planejado": 990.0, "realizado": 1200.0, "obs": ""}, {"data": "2026-09-09", "celula": "TAMPOGRAFIA", "segmento": "OEM", "item": "TA-577", "planejado": 600.0, "realizado": 600.0, "obs": ""}, {"data": "2026-09-09", "celula": "TAMPOGRAFIA", "segmento": "AM", "item": "TA-578", "planejado": 600.0, "realizado": 600.0, "obs": ""}, {"data": "2026-09-09", "celula": "OLEO MX", "segmento": "OEM", "item": "CC-1100-06", "planejado": 4760.0, "realizado": 4000.0, "obs": "Operador em treinamento"}, {"data": "2026-09-09", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1105-01", "planejado": 750.0, "realizado": 720.0, "obs": ""}, {"data": "2026-09-09", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-711-01", "planejado": 440.0, "realizado": 440.0, "obs": ""}, {"data": "2026-09-09", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1104-16", "planejado": 360.0, "realizado": 320.0, "obs": ""}, {"data": "2026-09-09", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-909-01", "planejado": 200.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-10", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1333", "planejado": 4080.0, "realizado": 4290.0, "obs": ""}, {"data": "2026-09-10", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 2075.0, "realizado": 1800.0, "obs": ""}, {"data": "2026-09-10", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1127-06", "planejado": 891.0, "realizado": 1105.0, "obs": ""}, {"data": "2026-09-10", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1068-06", "planejado": 1350.0, "realizado": 860.0, "obs": ""}, {"data": "2026-09-10", "celula": "ARLA", "segmento": "OEM", "item": "CC-1063-16", "planejado": 280.0, "realizado": 280.0, "obs": ""}, {"data": "2026-09-10", "celula": "ARLA", "segmento": "AM", "item": "TC-9011-06", "planejado": 240.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9010-06", "planejado": 280.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-10", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 6783.0, "realizado": 3600.0, "obs": ""}, {"data": "2026-09-10", "celula": "UP / MQB", "segmento": "OEM", "item": "CC-1111-56", "planejado": 720.0, "realizado": 720.0, "obs": ""}, {"data": "2026-09-10", "celula": "OLEO MX", "segmento": "OEM", "item": "CC-1100-06", "planejado": 4760.0, "realizado": 4250.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9130-06", "planejado": 2500.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9006-S-06", "planejado": 300.0, "realizado": 300.0, "obs": ""}, {"data": "2026-09-10", "celula": "ÁGUA", "segmento": "AM", "item": "SB-412", "planejado": 650.0, "realizado": 2002.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-1105-01", "planejado": 800.0, "realizado": 800.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-909-01", "planejado": 240.0, "realizado": 100.0, "obs": ""}, {"data": "2026-09-10", "celula": "TAMPAS", "segmento": "AM", "item": "TC-1014/1", "planejado": 45.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-11", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1333", "planejado": 3600.0, "realizado": 3750.0, "obs": ""}, {"data": "2026-09-11", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 1328.0, "realizado": 1080.0, "obs": ""}, {"data": "2026-09-11", "celula": "ARLA", "segmento": "AM", "item": "TC-9011-06", "planejado": 240.0, "realizado": 240.0, "obs": ""}, {"data": "2026-09-11", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9010-06", "planejado": 350.0, "realizado": 500.0, "obs": ""}, {"data": "2026-09-11", "celula": "OLEO", "segmento": "OEM", "item": "CC-860-06", "planejado": 2000.0, "realizado": 4800.0, "obs": ""}, {"data": "2026-09-11", "celula": "OLEO", "segmento": "OEM", "item": "CC-858-06", "planejado": 3990.0, "realizado": 600.0, "obs": ""}, {"data": "2026-09-11", "celula": "VALVULADA", "segmento": "AM", "item": "TC-3100/1", "planejado": 848.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-11", "celula": "OLEO MX", "segmento": "OEM", "item": "CC-1100-06", "planejado": 4200.0, "realizado": 4500.0, "obs": ""}, {"data": "2026-09-11", "celula": "ÁGUA", "segmento": "OEM", "item": "CC-894-06", "planejado": 250.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-11", "celula": "TAMPAS", "segmento": "AM", "item": "TC-9130-06", "planejado": 2500.0, "realizado": 2500.0, "obs": ""}, {"data": "2026-09-11", "celula": "ÁGUA", "segmento": "AM", "item": "SB-412", "planejado": 3300.0, "realizado": 1830.0, "obs": ""}, {"data": "2026-09-11", "celula": "ÁGUA", "segmento": "AM", "item": "TC-3061/2", "planejado": 923.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-11", "celula": "ÁGUA", "segmento": "AM", "item": "TC-9300/2", "planejado": 1929.0, "realizado": 0.0, "obs": ""}, {"data": "2026-09-11", "celula": "TAMPAS", "segmento": "OEM", "item": "CC-909-01", "planejado": 200.0, "realizado": 200.0, "obs": ""}, {"data": "2026-09-11", "celula": "TAMPAS", "segmento": "AM", "item": "TC-1014/1", "planejado": 950.0, "realizado": 750.0, "obs": ""}, {"data": "2026-09-14", "celula": "CORTE TELA", "segmento": "OEM", "item": "DV-1333", "planejado": 4080.0, "realizado": 4300.0, "obs": ""}, {"data": "2026-09-14", "celula": "PESCADOR", "segmento": "OEM", "item": "CC-1095-14", "planejado": 1328.0, "realizado": 1080.0, "obs": ""}, {"data": "2026-09-14", "celula": "SERV FREIO", "segmento": "OEM", "item": "CC-1068-06", "planejado": 2000.0, "realizado": 1446.0, "obs": "Falta de operador"}, {"data": "2026-09-14", "celula": "OLEO", "segmento": "OEM", "item": "CC-858-06", "planejado": 6783.0, "realizado": 7200.0, "obs": ""}, {"data": "2026-09-14", "celula": "SERV FREIO", "segmento": "OEM", "item": "VA-002-06", "planejado": 600.0, "realizado": 610.0, "obs": ""}, {"data": "2026-09-14", "celula": "VALVULADA", "segmento": "AM", "item": "TC-3100/1", "planejado": 848.0, "realizado": 520.0, "obs": "Falta de operador"}, {"data": "2026-09-14", "celula": "VALVU INTE", "segmento": "AM", "item": "SB-693", "planejado": 3640.0, "realizado": 1700.0, "obs": "Falta de operador"}, {"data": "2026-09-14", "celula": "VALVU INTE", "segmento": "AM", "item": "SB-375", "planejado": 797.5, "realizado": 310.0, "obs": ""}, {"data": "2026-09-14", "celula": "OLEO MX", "segmento": "OEM", "item": "CC-1100-06", "planejado": 2240.0, "realizado": 1750.0, "obs": ""}, {"data": "2026-09-14", "celula": "ÁGUA", "segmento": "AM", "item": "SB-412", "planejado": 3520.0, "realizado": 1650.0, "obs": ""}, {"data": "2026-09-14", "celula": "TAMPAS", "segmento": "AM", "item": "TC-1014/1", "planejado": 2375.0, "realizado": 1050.0, "obs": "Manutenção atuou em máquina das  8:30 as 13h"}], "trend": [{"data": "2026-09-01", "aderencia": 0.7005, "produtividade": 0.9893, "meta": 0.89, "absenteismo": 27.0, "horas_fora": 5.19, "hprog": 169.23, "hreal": 140.71}, {"data": "2026-09-02", "aderencia": 0.9469, "produtividade": 1.0735, "meta": 0.89, "absenteismo": 9.0, "horas_fora": 12.06, "hprog": 181.19, "hreal": 184.85}, {"data": "2026-09-03", "aderencia": 0.8375, "produtividade": 0.7328, "meta": 0.89, "absenteismo": 9.0, "horas_fora": 0.0, "hprog": 164.38, "hreal": 113.86}, {"data": "2026-09-04", "aderencia": 0.695, "produtividade": 1.0083, "meta": 0.89, "absenteismo": 41.0, "horas_fora": 3.09, "hprog": 155.03, "hreal": 114.97}, {"data": "2026-09-08", "aderencia": 0.6901, "produtividade": 0.9225, "meta": 0.89, "absenteismo": 18.0, "horas_fora": 14.13, "hprog": 181.75, "hreal": 151.05}, {"data": "2026-09-09", "aderencia": 0.924, "produtividade": 0.9534, "meta": 0.89, "absenteismo": 2.0, "horas_fora": 2.25, "hprog": 197.73, "hreal": 186.61}, {"data": "2026-09-10", "aderencia": 0.7735, "produtividade": 0.9234, "meta": 0.89, "absenteismo": 27.0, "horas_fora": 0.0, "hprog": 203.44, "hreal": 162.92}, {"data": "2026-09-11", "aderencia": 0.7798, "produtividade": 0.9102, "meta": 0.89, "absenteismo": 24.0, "horas_fora": 0.0, "hprog": 175.56, "hreal": 137.95}, {"data": "2026-09-14", "aderencia": 0.7662, "produtividade": 0.9688, "meta": 0.89, "absenteismo": 27.0, "horas_fora": 9.24, "hprog": 206.75, "hreal": 174.14}, {"data": "2026-09-15", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-16", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-17", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-18", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-21", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-22", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-23", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-24", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-25", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-28", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-29", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}, {"data": "2026-09-30", "aderencia": 0.0, "produtividade": 0.0, "meta": 0.89, "absenteismo": 0.0, "horas_fora": 0.0, "hprog": 0.0, "hreal": 0.0}]};
+
+/* ============================================================
+   Utilidades gerais
+   ============================================================ */
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+const pct = (v,d=1) => (v*100).toFixed(d).replace('.',',') + '%';
+const intFmt = (v) => Math.round(v).toLocaleString('pt-BR');
+const signedInt = (v) => (v>0?'+':'') + intFmt(v);
+const fmtDateShort = (iso) => { const [y,m,d]=iso.split('-'); return d+'/'+m; };
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+/* ============================================================
+   Tooltip customizado + interatividade/animação de entrada dos gráficos
+   ============================================================ */
+const tipEl = document.getElementById('chartTooltip');
+function showTooltip(html, evt){
+  tipEl.innerHTML = html;
+  tipEl.classList.add('show');
+  moveTooltip(evt);
+}
+function moveTooltip(evt){
+  tipEl.style.left = evt.clientX + 'px';
+  tipEl.style.top = evt.clientY + 'px';
+}
+function hideTooltip(){ tipEl.classList.remove('show'); }
+
+function wireChart(container){
+  if(!container) return;
+  container.querySelectorAll('[data-tip]').forEach(el=>{
+    el.addEventListener('mouseenter', e=>{
+      showTooltip(el.getAttribute('data-tip'), e);
+      el.classList.add('is-hover');
+      if(el.tagName === 'circle'){
+        const r0 = parseFloat(el.getAttribute('r'));
+        el.dataset.r0 = r0;
+        el.style.transition = (el.style.transition ? el.style.transition+', ' : '') + 'r .15s ease';
+        el.setAttribute('r', (r0*1.5).toFixed(2));
+      }
+      const svg = el.closest('svg');
+      if(svg) svg.querySelectorAll('[data-tip]').forEach(o=>{ if(o!==el) o.classList.add('is-dim'); });
+    });
+    el.addEventListener('mousemove', moveTooltip);
+    el.addEventListener('mouseleave', ()=>{
+      hideTooltip();
+      el.classList.remove('is-hover');
+      if(el.tagName === 'circle' && el.dataset.r0) el.setAttribute('r', el.dataset.r0);
+      const svg = el.closest('svg');
+      if(svg) svg.querySelectorAll('.is-dim').forEach(o=>o.classList.remove('is-dim'));
+    });
+    if(el.dataset.dimKey && el.dataset.dimValue!==undefined){
+      el.addEventListener('click', ()=> openDetailModal(el.dataset.dimKey, el.dataset.dimValue));
+    }
+  });
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      container.querySelectorAll('.grow-w').forEach(el=>{
+        const target = el.getAttribute('data-w');
+        if(target!==null) el.setAttribute('width', target);
+      });
+      container.querySelectorAll('.grow-line').forEach(el=>{ el.style.strokeDashoffset = '0'; });
+      container.querySelectorAll('.fade-in').forEach(el=>{ el.style.opacity = '1'; });
+    });
+  });
+}
+
+function animateCounter(el, target, formatFn, duration){
+  if(!el) return;
+  const start = performance.now();
+  function tick(now){
+    const t = Math.min(1, (now-start)/duration);
+    const eased = 1 - Math.pow(1-t, 3);
+    el.textContent = formatFn(target*eased);
+    if(t<1) requestAnimationFrame(tick);
+    else el.textContent = formatFn(target);
+  }
+  requestAnimationFrame(tick);
+}
+function norm(s){ return (s===null||s===undefined) ? '' : String(s).trim().toLowerCase(); }
+function toNum(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+/* ============================================================
+   Estado global: dados brutos atuais + intervalo de datas ativo
+   ============================================================ */
+let RAW = RAW_DEFAULT;      // {registros, trend}
+let CURRENT = null;         // dados agregados (após filtro de datas)
+let CURRENT_ITENS = [];
+let CURRENT_FILTER = { from:null, to:null };
+
+/* ============================================================
+   Agregação: registros brutos (+ intervalo de datas) -> dados do painel
+   ============================================================ */
+function aggregate(raw, dateFrom, dateTo){
+  const inRange = (iso) => (!dateFrom || iso>=dateFrom) && (!dateTo || iso<=dateTo);
+
+  const regs = raw.registros.filter(r => inRange(r.data));
+  const trend = raw.trend.filter(t => inRange(t.data)).sort((a,b)=>a.data.localeCompare(b.data));
+
+  const byCel = {}, bySeg = {}, byItem = {};
+  regs.forEach(r=>{
+    const cel = r.celula || 'N/D';
+    const seg = r.segmento || 'N/D';
+    const item = r.item;
+    const plan = r.planejado || 0, real = r.realizado || 0;
+
+    if(!byCel[cel]) byCel[cel] = { planejado:0, realizado:0, segCount:{} };
+    byCel[cel].planejado += plan; byCel[cel].realizado += real;
+    byCel[cel].segCount[seg] = (byCel[cel].segCount[seg]||0)+1;
+
+    if(!bySeg[seg]) bySeg[seg] = { planejado:0, realizado:0 };
+    bySeg[seg].planejado += plan; bySeg[seg].realizado += real;
+
+    if(item){
+      if(!byItem[item]) byItem[item] = { planejado:0, realizado:0, celCount:{}, segCount:{} };
+      byItem[item].planejado += plan; byItem[item].realizado += real;
+      byItem[item].celCount[cel] = (byItem[item].celCount[cel]||0)+1;
+      byItem[item].segCount[seg] = (byItem[item].segCount[seg]||0)+1;
+    }
+  });
+
+  const celulas = Object.entries(byCel).filter(([_,v])=>v.planejado>0).map(([cel,v])=>({
+    celula: cel, planejado: Math.round(v.planejado), realizado: Math.round(v.realizado),
+    aderencia: v.realizado/v.planejado, gap: Math.round(v.realizado-v.planejado),
+    segmento: Object.entries(v.segCount).sort((a,b)=>b[1]-a[1])[0][0]
+  }));
+
+  const itens = Object.entries(byItem).filter(([_,v])=>v.planejado>0).map(([item,v])=>({
+    item: item, planejado: Math.round(v.planejado), realizado: Math.round(v.realizado),
+    aderencia: v.realizado/v.planejado, gap: Math.round(v.realizado-v.planejado),
+    celula: Object.entries(v.celCount).sort((a,b)=>b[1]-a[1])[0][0],
+    segmento: Object.entries(v.segCount).sort((a,b)=>b[1]-a[1])[0][0]
+  }));
+
+  const segmentos = {};
+  Object.entries(bySeg).forEach(([seg,v])=>{ if(v.planejado>0) segmentos[seg] = { planejado:Math.round(v.planejado), realizado:Math.round(v.realizado), aderencia:v.realizado/v.planejado }; });
+
+  const totais = { planejado: celulas.reduce((a,c)=>a+c.planejado,0), realizado: celulas.reduce((a,c)=>a+c.realizado,0) };
+  totais.gap = totais.realizado - totais.planejado;
+
+  const observacoes = regs.filter(r => r.obs && String(r.obs).trim()).map(r=>({
+    data: r.data, celula: r.celula || 'N/D', segmento: r.segmento || 'N/D', item: r.item,
+    planejado: r.planejado||0, realizado: r.realizado||0,
+    aderencia: r.planejado>0 ? (r.realizado||0)/r.planejado : null,
+    obs: String(r.obs).trim()
+  })).sort((a,b)=> b.data.localeCompare(a.data));
+
+  return { trend, celulas, itens, segmentos, totais, observacoes };
+}
+
+function fullDateRange(raw){
+  const dates = [...raw.registros.map(r=>r.data), ...raw.trend.map(t=>t.data)].filter(Boolean).sort();
+  return { min: dates[0] || null, max: dates[dates.length-1] || null };
+}
+
+/* ============================================================
+   Estado dos toggles da legenda do gráfico de tendência
+   ============================================================ */
+const TREND_TOGGLES = { above:true, below:true, prod:false, meta:true };
+
+function refreshTrendChart(){
+  const el = document.getElementById('trendChart');
+  el.innerHTML = buildTrendSVG(CURRENT, TREND_TOGGLES);
+  wireChart(el);
+}
+
+document.querySelectorAll('#trendLegend .legend-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const key = btn.dataset.toggle;
+    TREND_TOGGLES[key] = !TREND_TOGGLES[key];
+    btn.classList.toggle('active', TREND_TOGGLES[key]);
+    btn.classList.toggle('off', !TREND_TOGGLES[key]);
+    refreshTrendChart();
+  });
+});
+
+/* ============================================================
+   Render geral do painel
+   ============================================================ */
+function renderAll(){
+  const from = document.getElementById('dateFrom').value || null;
+  const to = document.getElementById('dateTo').value || null;
+  CURRENT_FILTER = { from, to };
+  CURRENT = aggregate(RAW, from, to);
+
+  renderPeriod(CURRENT, from, to);
+  renderKPIs(CURRENT);
+  renderInsight(CURRENT);
+  const trendEl = document.getElementById('trendChart');
+  trendEl.innerHTML = buildTrendSVG(CURRENT, TREND_TOGGLES);
+  wireChart(trendEl);
+  renderChartAnalysis('trendAnalysis', analyzeTrend(CURRENT));
+  const weekdayEl = document.getElementById('weekdayChart');
+  weekdayEl.innerHTML = buildWeekdaySVG(CURRENT);
+  wireChart(weekdayEl);
+  renderChartAnalysis('weekdayAnalysis', analyzeWeekday(CURRENT));
+  const bandEl = document.getElementById('bandChart');
+  bandEl.innerHTML = buildBandSVG(CURRENT);
+  wireChart(bandEl);
+  renderChartAnalysis('bandAnalysis', analyzeBand(CURRENT));
+  const gapEl = document.getElementById('gapChart');
+  gapEl.innerHTML = buildGapSVG(CURRENT);
+  wireChart(gapEl);
+  renderChartAnalysis('gapAnalysis', analyzeGap(CURRENT));
+  renderSegSection(CURRENT);
+  renderTable(CURRENT);
+  renderItemsSection(CURRENT);
+  renderObsSection(CURRENT);
+}
+
+function setupDateInputs(){
+  const range = fullDateRange(RAW);
+  const fromEl = document.getElementById('dateFrom');
+  const toEl = document.getElementById('dateTo');
+  fromEl.min = range.min || ''; fromEl.max = range.max || '';
+  toEl.min = range.min || ''; toEl.max = range.max || '';
+  fromEl.value = ''; toEl.value = '';
+  document.getElementById('rangeNote').textContent = range.min ? `dados de ${fmtDateShort(range.min)} a ${fmtDateShort(range.max)}` : '';
+}
+
+function renderPeriod(data, from, to){
+  const range = fullDateRange(RAW);
+  const effFrom = from || range.min, effTo = to || range.max;
+  if(!effFrom || !effTo){ document.getElementById('periodoLabel').textContent = '—'; return; }
+  const [y1,m1] = effFrom.split('-'); const [y2,m2] = effTo.split('-');
+  let label;
+  if(y1===y2 && m1===m2 && !from && !to){
+    label = MESES[parseInt(m1,10)-1] + '/' + y1;
+    label = label.charAt(0).toUpperCase()+label.slice(1);
+  } else {
+    label = fmtDateShort(effFrom)+' a '+fmtDateShort(effTo)+'/'+y2;
+  }
+  document.getElementById('periodoLabel').textContent = label;
+}
+
+function weightedAdherence(data){ return data.totais.planejado ? data.totais.realizado / data.totais.planejado : 0; }
+function meanMeta(data){ return data.trend.length ? (data.trend.reduce((a,t)=>a+t.meta,0)/data.trend.length) : 0.89; }
+
+function renderKPIs(data){
+  const ader = weightedAdherence(data);
+  const meta = meanMeta(data);
+  const prodMean = data.trend.length ? data.trend.reduce((a,t)=>a+t.produtividade,0)/data.trend.length : 0;
+  const hprogTot = data.trend.reduce((a,t)=>a+t.hprog,0);
+  const hrealTot = data.trend.reduce((a,t)=>a+t.hreal,0);
+  const horasPerdidas = hprogTot - hrealTot;
+  const absTot = data.trend.reduce((a,t)=>a+t.absenteismo,0);
+  const gap = data.totais.gap;
+  const gapPct = data.totais.planejado ? Math.abs(gap)/data.totais.planejado : 0;
+  const aderDeltaPP = (ader - meta) * 100;
+
+  const cards = [
+    {
+      label:'Aderência do período', raw: ader, format: v=>pct(v),
+      delta: (aderDeltaPP>=0?'+':'') + aderDeltaPP.toFixed(1).replace('.',',') + ' p.p. vs. meta',
+      deltaClass: aderDeltaPP>=0?'good':'bad',
+      bar: Math.min(ader,1), barColor: ader>=meta ? 'var(--good)':'var(--bad)'
+    },
+    {
+      label:'Peças não realizadas', raw: Math.abs(gap), format: v=>intFmt(v),
+      delta: pct(gapPct)+' do planejado', deltaClass:'bad',
+      bar: Math.min(gapPct,1), barColor:'var(--bad)'
+    },
+    {
+      label:'Horas de produção perdidas', raw: horasPerdidas, format: v=>intFmt(v), suffix:'h',
+      delta: (hprogTot? intFmt(hprogTot):'0')+'h programadas', deltaClass:'neutral',
+      bar: hprogTot? Math.max(0,Math.min(horasPerdidas/hprogTot,1)):0, barColor:'var(--amber)'
+    },
+    {
+      label:'Produtividade média', raw: prodMean, format: v=>pct(v),
+      delta: prodMean>=1 ? 'acima da referência (100%)' : 'abaixo da referência (100%)',
+      deltaClass: prodMean>=1?'good':'bad',
+      bar: Math.min(prodMean,1), barColor: prodMean>=1?'var(--good)':'var(--amber)'
+    },
+    {
+      label:'Absenteísmo no período', raw: absTot, format: v=>intFmt(v), suffix:'h',
+      delta: (data.trend.length? (absTot/data.trend.length).toFixed(1).replace('.',','):'0') + 'h/dia em média',
+      deltaClass:'neutral', bar:null
+    }
+  ];
+
+  document.getElementById('kpiRow').innerHTML = cards.map((c,idx) => `
+    <div class="kpi">
+      <p class="label">${c.label}</p>
+      <div class="value"><span id="kpiVal${idx}">${c.format(0)}</span>${c.suffix?'<small>'+c.suffix+'</small>':''}</div>
+      <div class="delta ${c.deltaClass}">${c.delta}</div>
+      ${c.bar!==null ? `<div class="bar-track"><div class="bar-fill" id="kpiBar${idx}" style="width:0%;background:${c.barColor}"></div></div>` : ''}
+    </div>
+  `).join('');
+
+  cards.forEach((c,idx)=>{
+    animateCounter(document.getElementById('kpiVal'+idx), c.raw, c.format, 750);
+    if(c.bar!==null){
+      const barEl = document.getElementById('kpiBar'+idx);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(barEl) barEl.style.width = (c.bar*100).toFixed(1)+'%'; }));
+    }
+  });
+}
+
+function renderInsight(data){
+  const sorted = [...data.celulas].filter(c=>c.gap<0).sort((a,b)=>a.gap-b.gap);
+  const totalNeg = data.celulas.filter(c=>c.gap<0).reduce((a,c)=>a+c.gap,0);
+  const banner = document.getElementById('insightBanner');
+  const text = document.getElementById('insightText');
+  banner.classList.remove('good');
+
+  if(!data.celulas.length){
+    text.innerHTML = `<span class="tag">Sem dados</span>Não há registros no intervalo de datas selecionado.`;
+    return;
+  }
+  if(!sorted.length){
+    banner.classList.add('good');
+    text.innerHTML = `<span class="tag">Sem déficit</span>Todas as células atingiram ou superaram o planejado no período.`;
+    return;
+  }
+  const top = sorted.slice(0,3);
+  const topSum = top.reduce((a,c)=>a+c.gap,0);
+  const share = totalNeg ? (topSum/totalNeg)*100 : 0;
+  const names = top.map(c=>c.celula).join(', ');
+  const ader = weightedAdherence(data);
+  const meta = meanMeta(data);
+  banner.classList.toggle('good', ader>=meta);
+  text.innerHTML = `<span class="tag">${ader>=meta?'Meta atingida':'Ponto de atenção'}</span>`+
+    `A aderência do período foi de <b>${pct(ader)}</b> frente à meta de <b>${pct(meta)}</b>. `+
+    `<b>${esc(names)}</b> concentram <b>${share.toFixed(0)}%</b> do total de peças não realizadas (${intFmt(Math.abs(totalNeg))} peças), sendo as células prioritárias para ação corretiva.`;
+}
+
+/* ============================================================
+   Análise automática por gráfico
+   Cada função devolve { severity, text } ou null (sem dados)
+   ============================================================ */
+function renderChartAnalysis(elId, result){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  if(!result){ el.className = 'chart-analysis'; el.innerHTML = ''; return; }
+  el.className = 'chart-analysis ' + result.severity;
+  el.innerHTML = result.text;
+}
+
+function analyzeWeekday(data){
+  const trend = data.trend;
+  if(!trend.length) return null;
+  const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const byDay = {};
+  trend.forEach(t=>{
+    const [y,m,d] = t.data.split('-').map(Number);
+    const dow = new Date(y, m-1, d).getDay();
+    if(!byDay[dow]) byDay[dow] = { sum:0, count:0 };
+    byDay[dow].sum += t.aderencia; byDay[dow].count++;
+  });
+  const rows = Object.entries(byDay).map(([d,v])=>({ dia: DIAS[d], aderencia: v.sum/v.count }));
+  if(!rows.length) return null;
+  const meta = meanMeta(data);
+  if(rows.length < 2){
+    const r = rows[0];
+    return { severity: r.aderencia>=meta?'good':'warn', text: `<b>${r.dia}</b> é o único dia com dados suficientes no período, com aderência média de <b>${pct(r.aderencia)}</b>.` };
+  }
+  rows.sort((a,b)=>b.aderencia-a.aderencia);
+  const best = rows[0], worst = rows[rows.length-1];
+  const sev = worst.aderencia<0.7 ? 'crit' : (worst.aderencia<meta ? 'warn' : 'good');
+  return { severity: sev, text: `<b>${best.dia}</b> tem a maior aderência média do período (<b>${pct(best.aderencia)}</b>), enquanto <b>${worst.dia}</b> é o dia mais fraco (<b>${pct(worst.aderencia)}</b>)${worst.aderencia<meta ? ', abaixo da meta.' : '.'}` };
+}
+
+function analyzeBand(data){
+  const celulas = data.celulas.filter(c=>c.planejado>0);
+  if(!celulas.length) return null;
+  const meta = meanMeta(data);
+  const total = celulas.length;
+  const crit = celulas.filter(c=>c.aderencia<0.7).length;
+  const warn = celulas.filter(c=>c.aderencia>=0.7 && c.aderencia<meta).length;
+  const good = celulas.filter(c=>c.aderencia>=meta).length;
+  const sev = crit>0 ? (crit/total>0.3?'crit':'warn') : (warn>0?'warn':'good');
+  return { severity: sev, text: `Das <b>${total}</b> células analisadas, <b>${crit}</b> estão na faixa crítica (abaixo de 70%), <b>${warn}</b> na faixa de atenção e <b>${good}</b> já atingiram a meta de ${pct(meta,0)}.` };
+}
+
+function analyzeTrend(data){
+  const trend = data.trend;
+  if(!trend.length) return null;
+  const meta = meanMeta(data);
+  const abaixo = trend.filter(t=>t.aderencia < t.meta);
+  const pctAbaixo = abaixo.length/trend.length;
+  let curStreak=0, curStart=null, maxStreak=0, bestStart=null, bestEnd=null;
+  trend.forEach(t=>{
+    if(t.aderencia < t.meta){
+      curStreak++;
+      if(curStreak===1) curStart=t.data;
+      if(curStreak>maxStreak){ maxStreak=curStreak; bestStart=curStart; bestEnd=t.data; }
+    } else { curStreak=0; }
+  });
+  const streakText = maxStreak>=2 ? ` A maior sequência contínua abaixo da meta foi de <b>${maxStreak} dias</b> (${fmtDateShort(bestStart)} a ${fmtDateShort(bestEnd)}).` : '';
+  const sev = pctAbaixo>0.5 ? 'crit' : (abaixo.length ? 'warn' : 'good');
+  return { severity: sev, text: `<b>${abaixo.length} de ${trend.length}</b> dias (${pct(pctAbaixo)}) ficaram abaixo da meta de ${pct(meta,0)} no período.${streakText}` };
+}
+
+function analyzeGap(data){
+  const celulas = (data.celulas||[]).filter(c=>c.gap<0);
+  if(!celulas.length) return { severity:'good', text:'Nenhuma célula ficou abaixo do planejado no período.' };
+  const sorted = [...celulas].sort((a,b)=>a.gap-b.gap);
+  const totalNeg = celulas.reduce((a,c)=>a+c.gap,0);
+  const top3Sum = sorted.slice(0,3).reduce((a,c)=>a+c.gap,0);
+  const share = totalNeg ? (top3Sum/totalNeg)*100 : 0;
+  const sev = share>60 ? 'crit' : 'warn';
+  return { severity: sev, text: `<b>${esc(sorted[0].celula)}</b> lidera o déficit com <b>${intFmt(Math.abs(sorted[0].gap))}</b> peças não realizadas. As 3 piores células concentram <b>${share.toFixed(0)}%</b> do total de peças perdidas (${intFmt(Math.abs(totalNeg))}).` };
+}
+
+function analyzeSeg(data){
+  const segs = Object.entries(data.segmentos||{});
+  if(!segs.length) return null;
+  const meta = meanMeta(data);
+  const sorted = [...segs].sort((a,b)=>a[1].aderencia-b[1].aderencia);
+  const worst = sorted[0];
+  const sev = worst[1].aderencia<0.7 ? 'crit' : (worst[1].aderencia<meta ? 'warn' : 'good');
+  if(segs.length===1){
+    return { severity: sev, text: `Segmento <b>${esc(worst[0])}</b> com aderência de <b>${pct(worst[1].aderencia)}</b> no período.` };
+  }
+  const best = sorted[sorted.length-1];
+  return { severity: sev, text: `<b>${esc(worst[0])}</b> é o segmento com menor aderência (<b>${pct(worst[1].aderencia)}</b>), enquanto <b>${esc(best[0])}</b> lidera com <b>${pct(best[1].aderencia)}</b>.` };
+}
+
+function analyzeItemGap(data){
+  const itens = (data.itens||[]).filter(i=>i.gap<0);
+  if(!itens.length) return { severity:'good', text:'Nenhum item ficou abaixo do planejado no período.' };
+  const sorted = [...itens].sort((a,b)=>a.gap-b.gap);
+  const totalNeg = itens.reduce((a,c)=>a+c.gap,0);
+  const top = sorted[0];
+  const top3Sum = sorted.slice(0,3).reduce((a,c)=>a+c.gap,0);
+  const share = totalNeg ? (top3Sum/totalNeg)*100 : 0;
+  const sev = share>60 ? 'crit' : 'warn';
+  return { severity: sev, text: `<b>${esc(top.item)}</b> (célula ${esc(top.celula)}) é o item com maior déficit: <b>${intFmt(Math.abs(top.gap))}</b> peças não realizadas. Os 3 piores itens somam <b>${share.toFixed(0)}%</b> do déficit total de itens.` };
+}
+
+/* ============================================================
+   Gráficos em SVG puro (sem dependências externas)
+   ============================================================ */
+/* ============================================================
+   Gráficos em SVG puro (sem dependências externas)
+   Tamanhos de rótulo padronizados em todos os gráficos
+   ============================================================ */
+const F_AXIS = 11;     // rótulos de eixo (datas, %, escala)
+const F_NAME = 12;     // nomes de categoria (célula, item, segmento)
+const F_VALUE = 12;    // valores numéricos junto às barras/pontos
+
+function buildTrendSVG(data, toggles){
+  toggles = toggles || { above:true, below:true, prod:false, meta:true };
+  const rows = [...data.trend].sort((a,b)=>a.data.localeCompare(b.data));
+  if(!rows.length) return '<p class="empty-note">Sem dados de tendência diária no intervalo selecionado.</p>';
+
+  const GOOD = '#1E8A5F', BAD = '#B3401E';
+  const W = 1000, H = 320, padL = 42, padR = 12, padT = 28, padB = 28;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const n = rows.length;
+  const xStep = n>1 ? innerW/(n-1) : 0;
+  const vals = rows.flatMap(r=>[r.aderencia*100, r.produtividade*100]).filter(v=>!isNaN(v));
+  const maxV = Math.max(100, ...vals) + 14;
+  const x = i => padL + i*xStep;
+  const y = v => padT + innerH - (v/maxV)*innerH;
+  const meta = rows[0].meta*100 || 89;
+  const metaY = y(meta);
+  const isGood = r => (r.aderencia*100) >= ((r.meta ? r.meta*100 : meta));
+  const showAder = toggles.above || toggles.below;
+
+  const prodPts = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.produtividade*100).toFixed(1)}`).join(' ');
+  const areaPath = `M${x(0).toFixed(1)},${y(rows[0].aderencia*100).toFixed(1)} ` +
+    rows.map((r,i)=>`L${x(i).toFixed(1)},${y(r.aderencia*100).toFixed(1)}`).join(' ') +
+    ` L${x(n-1).toFixed(1)},${(padT+innerH).toFixed(1)} L${x(0).toFixed(1)},${(padT+innerH).toFixed(1)} Z`;
+
+  // segmentos da linha de aderência coloridos por meta — cada trecho respeita os toggles ativos
+  // e "desenha" ao entrar na tela via animação de stroke-dashoffset
+  let aderSegments = '';
+  if(showAder){
+    for(let i=0;i<n-1;i++){
+      const g0 = isGood(rows[i]), g1 = isGood(rows[i+1]);
+      let color, visible;
+      if(g0 && g1){ color = GOOD; visible = toggles.above; }
+      else if(!g0 && !g1){ color = BAD; visible = toggles.below; }
+      else { color = '#9AA1AC'; visible = true; } // trecho de transição: mostra se qualquer um dos dois estiver ativo
+      if(visible){
+        const x1=x(i), y1=y(rows[i].aderencia*100), x2=x(i+1), y2=y(rows[i+1].aderencia*100);
+        const len = (Math.hypot(x2-x1, y2-y1) || 0.01).toFixed(1);
+        aderSegments += `<line class="grow-line" style="stroke-dasharray:${len};stroke-dashoffset:${len};transition-delay:${i*20}ms" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="2.5"/>`;
+      }
+    }
+    if(n===1 && ((isGood(rows[0]) && toggles.above) || (!isGood(rows[0]) && toggles.below))){
+      const color = isGood(rows[0]) ? GOOD : BAD;
+      aderSegments += `<circle class="fade-in" style="opacity:0" cx="${x(0).toFixed(1)}" cy="${y(rows[0].aderencia*100).toFixed(1)}" r="3.2" fill="${color}"/>`;
+    }
+  }
+
+  let gridLines = '';
+  const step = 20;
+  for(let g=0; g<=maxV; g+=step){
+    const gy = y(g);
+    gridLines += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="#EEF0F3" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${(gy+4).toFixed(1)}" text-anchor="end" font-size="12" fill="#8992A3">${g}%</text>`;
+  }
+
+  const labelEvery = Math.max(1, Math.ceil(n/12));
+  let xLabels = '';
+  rows.forEach((r,i)=>{
+    if(i % labelEvery === 0 || i===n-1){
+      xLabels += `<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="12" fill="#8992A3">${fmtDateShort(r.data)}</text>`;
+    }
+  });
+
+  // pontos + rótulos de valor da aderência — só aparecem se o respectivo toggle (acima/abaixo) estiver ativo
+  let points = '';
+  if(showAder){
+    points = rows.map((r,i)=>{
+      const good = isGood(r);
+      if(good && !toggles.above) return '';
+      if(!good && !toggles.below) return '';
+      const px = x(i), py = y(r.aderencia*100);
+      const color = good ? GOOD : BAD;
+      const labelAbove = py - 10 >= padT + 8;
+      const labelY = labelAbove ? py - 10 : py + 16;
+      const tip = `<b>${fmtDateShort(r.data)}</b><div class="tip-sub">Aderência ${pct(r.aderencia)} · Produtividade ${pct(r.produtividade)}</div>`;
+      const delay = i*18;
+      return `<circle class="fade-in" style="opacity:0;transition-delay:${delay}ms" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="${color}" stroke="#fff" stroke-width="1.2" data-tip='${tip}'></circle>`+
+        `<text class="fade-in" style="opacity:0;transition-delay:${delay+140}ms" x="${px.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${color}">${pct(r.aderencia,0)}</text>`;
+    }).join('');
+  }
+
+  // produtividade: linha + rótulos só aparecem quando o toggle "Produtividade" está ativo
+  let prodLine = '', prodLabels = '';
+  if(toggles.prod){
+    prodLine = `<polyline class="fade-in" style="opacity:0;transition-delay:80ms" points="${prodPts}" fill="none" stroke="#C08A1E" stroke-width="2" stroke-dasharray="3,3"/>`;
+    prodLabels = rows.map((r,i)=>{
+      const px = x(i), py = y(r.produtividade*100);
+      const labelAbove = py - 10 >= padT + 8;
+      const labelY = labelAbove ? py - 10 : py + 16;
+      const tip = `<b>${fmtDateShort(r.data)}</b><div class="tip-sub">Produtividade ${pct(r.produtividade)}</div>`;
+      return `<circle class="fade-in" style="opacity:0;transition-delay:${i*18+60}ms" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#C08A1E" stroke="#fff" stroke-width="1" data-tip='${tip}'></circle>`+
+        `<text class="fade-in" style="opacity:0;transition-delay:${i*18+200}ms" x="${px.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="#C08A1E">${pct(r.produtividade,0)}</text>`;
+    }).join('');
+  }
+
+  const metaLine = toggles.meta
+    ? `<line class="fade-in" style="opacity:0" x1="${padL}" y1="${metaY.toFixed(1)}" x2="${W-padR}" y2="${metaY.toFixed(1)}" stroke="#B0B6BF" stroke-width="1.5" stroke-dasharray="6,4"/>`
+    : '';
+  const area = showAder ? `<path class="fade-in" style="opacity:0" d="${areaPath}" fill="rgba(31,86,115,0.06)" stroke="none"/>` : '';
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    ${gridLines}
+    ${metaLine}
+    ${area}
+    ${prodLine}
+    ${aderSegments}
+    ${prodLabels}
+    ${points}
+    ${xLabels}
+  </svg>`;
+}
+
+function buildTopDeficitSVG(list, nameKey, meta, emptyMsg){
+  const worst = [...list].filter(c=>c.gap<0).sort((a,b)=>a.gap-b.gap).slice(0,10);
+  if(!worst.length) return `<p class="empty-note">${emptyMsg}</p>`;
+
+  const W = 1000, rowH = 30, padL = 160, padR = 78, padT = 6;
+  const H = padT + worst.length*rowH + 6;
+  const maxAbs = Math.max(...worst.map(c=>Math.abs(c.gap)));
+  const innerW = W-padL-padR;
+  const scale = v => maxAbs ? (Math.abs(v)/maxAbs)*innerW : 0;
+
+  let bars = '';
+  worst.forEach((c,i)=>{
+    const yTop = padT + i*rowH;
+    const w = scale(c.gap);
+    const barH = rowH-12;
+    const color = c.aderencia < meta*0.7 ? '#B3401E' : '#D98A6E';
+    const label = c[nameKey];
+    const tip = `<b>${esc(label)}</b><div class="tip-sub">${intFmt(c.gap)} peças não realizadas · aderência ${pct(c.aderencia)}</div><div class="tip-sub">Clique para ver o detalhamento</div>`;
+    const delay = i*35;
+    bars += `<text x="${padL-10}" y="${(yTop+rowH/2+4).toFixed(1)}" text-anchor="end" font-size="${F_NAME}" font-weight="600" fill="#131B2E">${esc(label)}</text>`;
+    bars += `<rect class="grow-w" data-w="${w.toFixed(1)}" style="transition-delay:${delay}ms" x="${padL}" y="${(yTop+6).toFixed(1)}" width="0" height="${barH}" rx="4" fill="${color}" data-tip='${tip}' data-dim-key="${nameKey}" data-dim-value='${esc(label)}'></rect>`;
+    bars += `<text class="fade-in" style="opacity:0;transition-delay:${delay+250}ms" x="${(padL+w+8).toFixed(1)}" y="${(yTop+rowH/2+4).toFixed(1)}" font-size="${F_VALUE}" font-weight="700" fill="${color}">${intFmt(c.gap)}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
+}
+
+function buildGapSVG(data){
+  return buildTopDeficitSVG(data.celulas, 'celula', meanMeta(data), 'Nenhuma célula abaixo do planejado no intervalo selecionado.');
+}
+
+function buildSegSVG(data){
+  const segs = Object.entries(data.segmentos);
+  if(!segs.length) return '<p class="empty-note">Sem dados de segmento no intervalo selecionado.</p>';
+
+  const W = 480, rowH = 56, padL = 68, padR = 64, padT = 8;
+  const H = padT + segs.length*rowH + 6;
+  const maxV = Math.max(...segs.flatMap(s=>[s[1].planejado, s[1].realizado]), 1);
+  const innerW = W-padL-padR;
+  const scale = v => (v/maxV)*innerW;
+
+  let bars = '';
+  segs.forEach(([name,v],i)=>{
+    const yTop = padT + i*rowH;
+    const wPlan = scale(v.planejado), wReal = scale(v.realizado);
+    const delay = i*70;
+    const tipPlan = `<b>${esc(name)}</b><div class="tip-sub">Planejado: ${intFmt(v.planejado)}</div><div class="tip-sub">Clique para ver o detalhamento</div>`;
+    const tipReal = `<b>${esc(name)}</b><div class="tip-sub">Realizado: ${intFmt(v.realizado)} · Aderência ${pct(v.aderencia)}</div><div class="tip-sub">Clique para ver o detalhamento</div>`;
+    bars += `<text x="${padL-10}" y="${(yTop+18).toFixed(1)}" text-anchor="end" font-size="${F_NAME}" font-weight="700" fill="#131B2E">${esc(name)}</text>`;
+    bars += `<rect class="grow-w" data-w="${wPlan.toFixed(1)}" style="transition-delay:${delay}ms" x="${padL}" y="${(yTop+2).toFixed(1)}" width="0" height="14" rx="3" fill="#D6DBE2" data-tip='${tipPlan}' data-dim-key="segmento" data-dim-value='${esc(name)}'></rect>`;
+    bars += `<text class="fade-in" style="opacity:0;transition-delay:${delay+260}ms" x="${(padL+wPlan+6).toFixed(1)}" y="${(yTop+13).toFixed(1)}" font-size="${F_VALUE}" fill="#5B6472">${intFmt(v.planejado)}</text>`;
+    bars += `<rect class="grow-w" data-w="${wReal.toFixed(1)}" style="transition-delay:${delay+50}ms" x="${padL}" y="${(yTop+22).toFixed(1)}" width="0" height="14" rx="3" fill="#1F5673" data-tip='${tipReal}' data-dim-key="segmento" data-dim-value='${esc(name)}'></rect>`;
+    bars += `<text class="fade-in" style="opacity:0;transition-delay:${delay+310}ms" x="${(padL+wReal+6).toFixed(1)}" y="${(yTop+33).toFixed(1)}" font-size="${F_VALUE}" fill="#1F5673" font-weight="700">${intFmt(v.realizado)}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
+}
+
+function buildWeekdaySVG(data){
+  const trend = data.trend;
+  if(!trend.length) return '<p class="empty-note">Sem dados de tendência no intervalo selecionado.</p>';
+
+  const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const ORDER = [1,2,3,4,5,6,0]; // segunda a domingo
+  const byDay = {};
+  trend.forEach(t=>{
+    const [y,m,d] = t.data.split('-').map(Number);
+    const dow = new Date(y, m-1, d).getDay();
+    if(!byDay[dow]) byDay[dow] = { sumAder:0, count:0 };
+    byDay[dow].sumAder += t.aderencia;
+    byDay[dow].count++;
+  });
+  const meta = meanMeta(data);
+  const rows = ORDER.filter(d=>byDay[d]).map(d=>({
+    label: DIAS[d], aderencia: byDay[d].sumAder/byDay[d].count, count: byDay[d].count
+  }));
+  if(!rows.length) return '<p class="empty-note">Sem dados de tendência no intervalo selecionado.</p>';
+
+  const W = 480, rowH = 40, padL = 84, padR = 56, padT = 8;
+  const H = padT + rows.length*rowH + 6;
+  const innerW = W-padL-padR;
+  const capV = Math.max(1.1, ...rows.map(r=>r.aderencia));
+  const scale = v => Math.max(0,v)/capV*innerW;
+
+  let bars = '';
+  rows.forEach((r,i)=>{
+    const yTop = padT + i*rowH;
+    const w = scale(r.aderencia);
+    const barH = rowH-16;
+    const color = r.aderencia >= meta ? '#1E8A5F' : '#B3401E';
+    const delay = i*70;
+    const tip = `<b>${esc(r.label)}</b><div class="tip-sub">Aderência média: ${pct(r.aderencia)}</div><div class="tip-sub">${r.count} dia(s) no período</div>`;
+    bars += `<text x="${padL-10}" y="${(yTop+rowH/2+4).toFixed(1)}" text-anchor="end" font-size="${F_NAME}" font-weight="600" fill="#131B2E">${esc(r.label)}</text>`;
+    bars += `<rect class="grow-w" data-w="${w.toFixed(1)}" style="transition-delay:${delay}ms" x="${padL}" y="${(yTop+8).toFixed(1)}" width="0" height="${barH}" rx="4" fill="${color}" data-tip='${tip}'></rect>`;
+    bars += `<text class="fade-in" style="opacity:0;transition-delay:${delay+250}ms" x="${(padL+w+8).toFixed(1)}" y="${(yTop+rowH/2+4).toFixed(1)}" font-size="${F_VALUE}" font-weight="700" fill="${color}">${pct(r.aderencia)}</text>`;
+  });
+
+  const metaX = padL + scale(meta);
+  bars += `<line x1="${metaX.toFixed(1)}" y1="2" x2="${metaX.toFixed(1)}" y2="${H-2}" stroke="#B0B6BF" stroke-width="1.5" stroke-dasharray="4,3"></line>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
+}
+
+function buildBandSVG(data){
+  const celulas = data.celulas.filter(c=>c.planejado>0);
+  if(!celulas.length) return '<p class="empty-note">Sem dados de célula no intervalo selecionado.</p>';
+  const meta = meanMeta(data);
+  const bands = [
+    { label:'Crítico (< 70%)', color:'#B3401E', test: c=>c.aderencia<0.7 },
+    { label:`Atenção (70% a ${pct(meta,0)})`, color:'#C08A1E', test: c=>c.aderencia>=0.7 && c.aderencia<meta },
+    { label:`Meta atingida (≥ ${pct(meta,0)})`, color:'#1E8A5F', test: c=>c.aderencia>=meta }
+  ];
+  const rows = bands.map(b=>({ ...b, items: celulas.filter(b.test) }));
+  const total = celulas.length;
+
+  const W = 480, rowH = 68, padL = 20, padR = 20, padT = 14, gap = 10;
+  const H = padT + rows.length*rowH + (rows.length-1)*gap + 14;
+  const innerW = W-padL-padR;
+  const maxV = Math.max(...rows.map(r=>r.items.length), 1);
+  const scale = v => (v/maxV)*innerW;
+
+  let bars = '';
+  rows.forEach((r,i)=>{
+    const yTop = padT + i*(rowH+gap);
+    const barTrackY = yTop + 28;
+    const barH = 22;
+    const w = scale(r.items.length);
+    const sharePct = total ? Math.round((r.items.length/total)*100) : 0;
+    const delay = i*110;
+    const names = r.items.slice(0,6).map(c=>esc(c.celula)).join(', ') + (r.items.length>6 ? '…' : '');
+    const tip = `<b>${esc(r.label)}</b><div class="tip-sub">${r.items.length} célula(s) · ${sharePct}%</div>${names?`<div class="tip-sub">${names}</div>`:''}`;
+    bars += `<text x="${padL}" y="${(yTop+13).toFixed(1)}" font-size="${F_NAME+1}" font-weight="700" fill="#131B2E">${esc(r.label)}</text>`;
+    bars += `<rect x="${padL}" y="${barTrackY.toFixed(1)}" width="${innerW}" height="${barH}" rx="6" fill="#EEF0F3"></rect>`;
+    bars += `<rect class="grow-w" data-w="${w.toFixed(1)}" style="transition-delay:${delay}ms" x="${padL}" y="${barTrackY.toFixed(1)}" width="0" height="${barH}" rx="6" fill="${r.color}" data-tip='${tip}'></rect>`;
+    bars += `<text class="fade-in" style="opacity:0;transition-delay:${delay+250}ms" x="${(padL+innerW-10).toFixed(1)}" y="${(barTrackY+barH/2+4).toFixed(1)}" text-anchor="end" font-size="${F_VALUE+1}" font-weight="700" fill="${w>innerW*0.72?'#fff':r.color}">${r.items.length} · ${sharePct}%</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
+}
+
+function renderSegSection(data){
+  const chipsEl = document.getElementById('segChips');
+  const segs = Object.entries(data.segmentos);
+  chipsEl.innerHTML = segs.map(([name,v])=>`
+    <div class="chip">
+      <span class="chip-label">${esc(name)}</span>
+      <span class="chip-val" style="color:${v.aderencia>=0.89?'var(--good)':'var(--bad)'}">${pct(v.aderencia)}</span>
+    </div>
+  `).join('');
+  const segEl = document.getElementById('segChart');
+  segEl.innerHTML = buildSegSVG(data);
+  wireChart(segEl);
+  renderChartAnalysis('segAnalysis', analyzeSeg(data));
+}
+
+/* ============================================================
+   Tabela de células (aba Detalhamento) + busca
+   ============================================================ */
+function renderTable(data){
+  const meta = meanMeta(data);
+  document.getElementById('tableNote').textContent = `${data.celulas.length} células no intervalo · ordenado por maior déficit`;
+  document.getElementById('celSearch').value = '';
+  filterAndRenderCelulas();
+}
+
+function filterAndRenderCelulas(){
+  if(!CURRENT) return;
+  const meta = meanMeta(CURRENT);
+  const q = norm(document.getElementById('celSearch').value);
+  let rows = [...CURRENT.celulas].sort((a,b)=>a.gap-b.gap);
+  if(q) rows = rows.filter(c => norm(c.celula).includes(q));
+  document.getElementById('celResultCount').textContent = `${rows.length} resultado${rows.length===1?'':'s'}`;
+
+  document.getElementById('tableBody').innerHTML = rows.map(c=>{
+    const good = c.aderencia >= meta;
+    const pillBg = good ? 'var(--good-bg)' : 'var(--bad-bg)';
+    const pillColor = good ? 'var(--good)' : 'var(--bad)';
+    return `
+      <tr>
+        <td><span class="cell-name">${esc(c.celula)}</span><span class="seg-tag">${esc(c.segmento)}</span></td>
+        <td class="num">${intFmt(c.planejado)}</td>
+        <td class="num">${intFmt(c.realizado)}</td>
+        <td class="num"><span class="ader-pill" style="background:${pillBg};color:${pillColor}">${pct(c.aderencia)}</span></td>
+        <td class="num" style="color:${c.gap<0?'var(--bad)':'var(--good)'};font-weight:600;">${signedInt(c.gap)}</td>
+      </tr>`;
+  }).join('');
+}
+
+/* ============================================================
+   Seção de itens: gráfico de piores itens + tabela pesquisável
+   ============================================================ */
+function renderItemsSection(data){
+  const meta = meanMeta(data);
+  CURRENT_ITENS = data.itens || [];
+
+  const itemGapEl = document.getElementById('itemGapChart');
+  itemGapEl.innerHTML = buildTopDeficitSVG(CURRENT_ITENS, 'item', meta, 'Sem dados de item no intervalo selecionado.');
+  wireChart(itemGapEl);
+  renderChartAnalysis('itemGapAnalysis', analyzeItemGap(data));
+
+  const celulaFilter = document.getElementById('itemCelulaFilter');
+  const celulasUnicas = [...new Set(CURRENT_ITENS.map(i=>i.celula))].sort((a,b)=>a.localeCompare(b));
+  const prevSel = celulaFilter.value;
+  celulaFilter.innerHTML = '<option value="">Todas as células</option>' +
+    celulasUnicas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(celulasUnicas.includes(prevSel)) celulaFilter.value = prevSel;
+
+  document.getElementById('itemTableNote').textContent = `${CURRENT_ITENS.length} itens no intervalo · ordenado por maior déficit`;
+  filterAndRenderItems();
+}
+
+function filterAndRenderItems(){
+  if(!CURRENT) return;
+  const meta = meanMeta(CURRENT);
+  const q = norm(document.getElementById('itemSearch').value);
+  const celSel = document.getElementById('itemCelulaFilter').value;
+
+  let rows = [...CURRENT_ITENS].sort((a,b)=>a.gap-b.gap);
+  if(celSel) rows = rows.filter(i=>i.celula === celSel);
+  if(q) rows = rows.filter(i => norm(i.item).includes(q) || norm(i.celula).includes(q));
+
+  document.getElementById('itemResultCount').textContent = `${rows.length} resultado${rows.length===1?'':'s'}`;
+
+  document.getElementById('itemTableBody').innerHTML = rows.map(it=>{
+    const good = it.aderencia >= meta;
+    const pillBg = good ? 'var(--good-bg)' : 'var(--bad-bg)';
+    const pillColor = good ? 'var(--good)' : 'var(--bad)';
+    return `
+      <tr>
+        <td class="cell-name">${esc(it.item)}</td>
+        <td>${esc(it.celula)}<span class="seg-tag">${esc(it.segmento)}</span></td>
+        <td class="num">${intFmt(it.planejado)}</td>
+        <td class="num">${intFmt(it.realizado)}</td>
+        <td class="num"><span class="ader-pill" style="background:${pillBg};color:${pillColor}">${pct(it.aderencia)}</span></td>
+        <td class="num" style="color:${it.gap<0?'var(--bad)':'var(--good)'};font-weight:600;">${signedInt(it.gap)}</td>
+      </tr>`;
+  }).join('');
+}
+
+/* ============================================================
+   Seção de observações: tabela pesquisável dos lançamentos com Obs
+   ============================================================ */
+function renderObsSection(data){
+  document.getElementById('obsTableNote').textContent = `${(data.observacoes||[]).length} lançamento(s) com observação no intervalo`;
+  document.getElementById('obsSearch').value = '';
+  filterAndRenderObs();
+}
+
+function filterAndRenderObs(){
+  if(!CURRENT) return;
+  const meta = meanMeta(CURRENT);
+  const q = norm(document.getElementById('obsSearch').value);
+  let rows = [...(CURRENT.observacoes||[])];
+  if(q) rows = rows.filter(o => norm(o.celula).includes(q) || norm(o.item||'').includes(q) || norm(o.obs).includes(q));
+
+  document.getElementById('obsResultCount').textContent = `${rows.length} resultado${rows.length===1?'':'s'}`;
+
+  document.getElementById('obsTableBody').innerHTML = rows.length ? rows.map(o=>{
+    const [y,m,d] = o.data.split('-');
+    const hasAder = o.aderencia !== null && o.aderencia !== undefined;
+    const good = hasAder && o.aderencia >= meta;
+    const pillBg = hasAder ? (good ? 'var(--good-bg)' : 'var(--bad-bg)') : 'transparent';
+    const pillColor = hasAder ? (good ? 'var(--good)' : 'var(--bad)') : 'var(--ink-faint)';
+    return `
+      <tr>
+        <td>${d}/${m}/${y}</td>
+        <td><span class="cell-name">${esc(o.celula)}</span><span class="seg-tag">${esc(o.segmento)}</span></td>
+        <td>${esc(o.item||'—')}</td>
+        <td class="num">${intFmt(o.planejado)}</td>
+        <td class="num">${intFmt(o.realizado)}</td>
+        <td class="num">${hasAder ? `<span class="ader-pill" style="background:${pillBg};color:${pillColor}">${pct(o.aderencia)}</span>` : '—'}</td>
+        <td>${esc(o.obs)}</td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="7" style="color:var(--ink-faint);text-align:center;padding:18px;">Nenhuma observação no intervalo selecionado.</td></tr>`;
+}
+
+document.getElementById('celSearch').addEventListener('input', filterAndRenderCelulas);
+document.getElementById('itemSearch').addEventListener('input', filterAndRenderItems);
+document.getElementById('itemCelulaFilter').addEventListener('change', filterAndRenderItems);
+document.getElementById('obsSearch').addEventListener('input', filterAndRenderObs);
+
+/* ============================================================
+   Modal: expandir gráfico
+   ============================================================ */
+const chartModal = document.getElementById('chartModal');
+function openChartModal(title, sourceId){
+  const source = document.getElementById(sourceId);
+  if(!source) return;
+  document.getElementById('chartModalTitle').textContent = title;
+  const body = document.getElementById('chartModalBody');
+  body.innerHTML = source.innerHTML;
+  wireChart(body);
+  chartModal.classList.add('open');
+}
+function closeChartModal(){ chartModal.classList.remove('open'); }
+
+document.querySelectorAll('.expand-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> openChartModal(btn.dataset.title, btn.dataset.chart));
+});
+document.getElementById('chartModalClose').addEventListener('click', closeChartModal);
+chartModal.addEventListener('click', (e)=>{ if(e.target === chartModal) closeChartModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeChartModal(); closeDetailModal(); } });
+
+/* ============================================================
+   Modal: detalhamento por célula / item / segmento
+   (clique numa barra dos gráficos abre a lista de registros)
+   ============================================================ */
+const detailModal = document.getElementById('detailModal');
+const DIM_LABELS = { celula:'Célula', item:'Item', segmento:'Segmento' };
+
+function getDetailRecords(dimKey, value){
+  const from = CURRENT_FILTER.from, to = CURRENT_FILTER.to;
+  const inRange = (iso) => (!from || iso>=from) && (!to || iso<=to);
+  return RAW.registros
+    .filter(r => inRange(r.data) && String(r[dimKey]||'N/D') === value)
+    .sort((a,b)=> a.data.localeCompare(b.data) || String(a.item||'').localeCompare(String(b.item||'')));
+}
+
+function openDetailModal(dimKey, value){
+  const records = getDetailRecords(dimKey, value);
+  const meta = CURRENT ? meanMeta(CURRENT) : 0.89;
+  const totalPlan = records.reduce((a,r)=>a+r.planejado,0);
+  const totalReal = records.reduce((a,r)=>a+r.realizado,0);
+  const ader = totalPlan ? totalReal/totalPlan : 0;
+  const otherKey = dimKey === 'celula' ? 'item' : (dimKey === 'item' ? 'celula' : 'celula');
+  const otherLabel = dimKey === 'celula' ? 'Item' : (dimKey === 'item' ? 'Célula' : 'Célula');
+
+  document.getElementById('detailModalTitle').textContent = `${DIM_LABELS[dimKey]||dimKey}: ${value}`;
+
+  const rowsHtml = records.map(r=>{
+    const g = r.realizado - r.planejado;
+    const a = r.planejado ? r.realizado/r.planejado : 0;
+    const good = a >= meta;
+    const otherVal = r[otherKey] || 'N/D';
+    return `<tr>
+      <td>${fmtDateShort(r.data)}</td>
+      <td><span class="cell-name">${esc(otherVal)}</span><span class="seg-tag">${esc(r.segmento||'N/D')}</span></td>
+      <td class="num">${intFmt(r.planejado)}</td>
+      <td class="num">${intFmt(r.realizado)}</td>
+      <td class="num"><span class="ader-pill" style="background:${good?'var(--good-bg)':'var(--bad-bg)'};color:${good?'var(--good)':'var(--bad)'}">${pct(a)}</span></td>
+      <td class="num" style="color:${g<0?'var(--bad)':'var(--good)'};font-weight:600;">${signedInt(g)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('detailModalBody').innerHTML = `
+    <div class="chips" style="margin-bottom:16px;">
+      <div class="chip"><span class="chip-label">Registros</span><span class="chip-val">${records.length}</span></div>
+      <div class="chip"><span class="chip-label">Planejado total</span><span class="chip-val">${intFmt(totalPlan)}</span></div>
+      <div class="chip"><span class="chip-label">Realizado total</span><span class="chip-val">${intFmt(totalReal)}</span></div>
+      <div class="chip"><span class="chip-label">Aderência</span><span class="chip-val" style="color:${ader>=meta?'var(--good)':'var(--bad)'}">${pct(ader)}</span></div>
+    </div>
+    <div class="table-scroll" style="max-height:58vh;">
+      <table>
+        <thead><tr>
+          <th>Data</th><th>${otherLabel}</th>
+          <th class="num">Planejado</th><th class="num">Realizado</th>
+          <th class="num">Aderência</th><th class="num">Saldo</th>
+        </tr></thead>
+        <tbody>${rowsHtml || '<tr><td colspan="6" style="text-align:center;color:var(--ink-faint);padding:24px;">Nenhum registro encontrado no intervalo selecionado.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+  detailModal.classList.add('open');
+}
+function closeDetailModal(){ detailModal.classList.remove('open'); }
+document.getElementById('detailModalClose').addEventListener('click', closeDetailModal);
+detailModal.addEventListener('click', (e)=>{ if(e.target === detailModal) closeDetailModal(); });
+
+/* ============================================================
+   Abas
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ============================================================
+   Filtro de datas
+   ============================================================ */
+document.getElementById('dateFrom').addEventListener('change', renderAll);
+document.getElementById('dateTo').addEventListener('change', renderAll);
+document.getElementById('dateReset').addEventListener('click', ()=>{
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  renderAll();
+});
+
+/* ============================================================
+   Leitor de .xlsx nativo — sem bibliotecas externas
+   Um .xlsx é um arquivo ZIP contendo XML. Usamos:
+   - DecompressionStream nativo do navegador para o "deflate"
+   - DOMParser nativo para ler o XML
+   ============================================================ */
+function excelSerialToISO(serial){
+  if(typeof serial !== 'number' || isNaN(serial)) return null;
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  if(isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0,10);
+}
+
+function readZipEntries(buf){
+  const dv = new DataView(buf);
+  const len = buf.byteLength;
+  let eocd = -1;
+  const searchStart = Math.max(0, len - 66000);
+  for(let i = len - 22; i >= searchStart; i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd === -1) throw new Error('não foi possível ler o arquivo como .xlsx (assinatura ZIP não encontrada).');
+  const cdCount = dv.getUint16(eocd + 10, true);
+  const cdOffset = dv.getUint32(eocd + 16, true);
+  const entries = {};
+  let ptr = cdOffset;
+  for(let i=0; i<cdCount; i++){
+    const sig = dv.getUint32(ptr, true);
+    if(sig !== 0x02014b50) break;
+    const compMethod = dv.getUint16(ptr+10, true);
+    const compSize = dv.getUint32(ptr+20, true);
+    const nameLen = dv.getUint16(ptr+28, true);
+    const extraLen = dv.getUint16(ptr+30, true);
+    const commentLen = dv.getUint16(ptr+32, true);
+    const localOffset = dv.getUint32(ptr+42, true);
+    const nameBytes = new Uint8Array(buf, ptr+46, nameLen);
+    const name = new TextDecoder('utf-8').decode(nameBytes);
+    entries[name] = { compMethod, compSize, localOffset };
+    ptr += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+async function extractEntry(buf, entry){
+  const dv = new DataView(buf);
+  const lo = entry.localOffset;
+  const nameLen = dv.getUint16(lo+26, true);
+  const extraLen = dv.getUint16(lo+28, true);
+  const dataStart = lo + 30 + nameLen + extraLen;
+  const compData = buf.slice(dataStart, dataStart + entry.compSize);
+  if(entry.compMethod === 0) return compData;
+  if(entry.compMethod === 8){
+    if(typeof DecompressionStream === 'undefined'){
+      throw new Error('este navegador não suporta a leitura de arquivos .xlsx compactados (DecompressionStream indisponível). Tente um navegador mais recente.');
+    }
+    const stream = new Blob([compData]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return await new Response(stream).arrayBuffer();
+  }
+  throw new Error('método de compactação do .xlsx não suportado.');
+}
+
+async function readXmlEntry(buf, entries, path){
+  const key = Object.keys(entries).find(k => k.replace(/^\/+/,'') === path.replace(/^\/+/,''));
+  if(!key) return null;
+  const data = await extractEntry(buf, entries[key]);
+  const text = new TextDecoder('utf-8').decode(data);
+  return new DOMParser().parseFromString(text, 'application/xml');
+}
+
+function parseSharedStrings(xmlDoc){
+  if(!xmlDoc) return [];
+  const sis = xmlDoc.getElementsByTagName('si');
+  const arr = [];
+  for(let i=0;i<sis.length;i++){
+    const tNodes = sis[i].getElementsByTagName('t');
+    let text = '';
+    for(let j=0;j<tNodes.length;j++) text += tNodes[j].textContent;
+    arr.push(text);
+  }
+  return arr;
+}
+
+function getRid(sheetEl){
+  let v = sheetEl.getAttribute('r:id');
+  if(v) return v;
+  const attrs = sheetEl.attributes;
+  for(let i=0;i<attrs.length;i++){
+    if(attrs[i].name.toLowerCase().endsWith(':id')) return attrs[i].value;
+  }
+  return null;
+}
+
+function parseWorkbookSheets(xmlDoc){
+  const out = [];
+  const els = xmlDoc.getElementsByTagName('sheet');
+  for(let i=0;i<els.length;i++){
+    out.push({ name: els[i].getAttribute('name'), rid: getRid(els[i]) });
+  }
+  return out;
+}
+
+function parseRels(xmlDoc){
+  const map = {};
+  if(!xmlDoc) return map;
+  const rels = xmlDoc.getElementsByTagName('Relationship');
+  for(let i=0;i<rels.length;i++){
+    map[rels[i].getAttribute('Id')] = rels[i].getAttribute('Target');
+  }
+  return map;
+}
+
+function colLettersToIndex(letters){
+  let idx = 0;
+  for(let i=0;i<letters.length;i++) idx = idx*26 + (letters.charCodeAt(i)-64);
+  return idx-1;
+}
+
+function parseSheetRows(xmlDoc, sharedStrings){
+  const rows = [];
+  const rowEls = xmlDoc.getElementsByTagName('row');
+  for(let ri=0; ri<rowEls.length; ri++){
+    const rowEl = rowEls[ri];
+    const rAttr = rowEl.getAttribute('r');
+    const rIdx = rAttr ? (parseInt(rAttr,10)-1) : ri;
+    if(!rows[rIdx]) rows[rIdx] = [];
+    const rowArr = rows[rIdx];
+    const cellEls = rowEl.getElementsByTagName('c');
+    let autoCol = 0;
+    for(let ci=0; ci<cellEls.length; ci++){
+      const c = cellEls[ci];
+      const ref = c.getAttribute('r');
+      let colIdx;
+      if(ref){
+        const m = ref.match(/[A-Za-z]+/);
+        colIdx = m ? colLettersToIndex(m[0].toUpperCase()) : autoCol;
+      } else {
+        colIdx = autoCol;
+      }
+      autoCol = colIdx+1;
+      const type = c.getAttribute('t');
+      let value = null;
+      if(type === 's'){
+        const vN = c.getElementsByTagName('v')[0];
+        if(vN) value = sharedStrings[parseInt(vN.textContent,10)] ?? null;
+      } else if(type === 'inlineStr'){
+        const isN = c.getElementsByTagName('is')[0];
+        value = isN ? isN.textContent : null;
+      } else if(type === 'str'){
+        const vN = c.getElementsByTagName('v')[0];
+        value = vN ? vN.textContent : null;
+      } else if(type === 'b'){
+        const vN = c.getElementsByTagName('v')[0];
+        value = vN ? (vN.textContent === '1') : null;
+      } else if(type === 'e'){
+        value = null;
+      } else {
+        const vN = c.getElementsByTagName('v')[0];
+        value = vN ? parseFloat(vN.textContent) : null;
+      }
+      rowArr[colIdx] = value;
+    }
+  }
+  for(let i=0;i<rows.length;i++) if(!rows[i]) rows[i] = [];
+  return rows;
+}
+
+function resolveTargetPath(target){
+  if(target.startsWith('/')) return target.slice(1);
+  return 'xl/' + target;
+}
+
+async function parseXlsxArrayBuffer(buf){
+  const entries = readZipEntries(buf);
+  const wbXml = await readXmlEntry(buf, entries, 'xl/workbook.xml');
+  if(!wbXml) throw new Error('xl/workbook.xml não encontrado — o arquivo pode não ser um .xlsx válido.');
+  const relsXml = await readXmlEntry(buf, entries, 'xl/_rels/workbook.xml.rels');
+  const sstXml = await readXmlEntry(buf, entries, 'xl/sharedStrings.xml');
+  const sharedStrings = parseSharedStrings(sstXml);
+  const sheetsMeta = parseWorkbookSheets(wbXml);
+  const relsMap = parseRels(relsXml);
+
+  async function getSheetRowsByMatch(matchFn){
+    const meta = sheetsMeta.find(s => matchFn(norm(s.name)));
+    if(!meta) return null;
+    const target = relsMap[meta.rid];
+    if(!target) return null;
+    const path = resolveTargetPath(target);
+    const xml = await readXmlEntry(buf, entries, path);
+    if(!xml) return null;
+    return parseSheetRows(xml, sharedStrings);
+  }
+
+  const baseRows = await getSheetRowsByMatch(n => n.includes('base de dados'));
+  const trendRows = await getSheetRowsByMatch(n => n === 'aderência' || n === 'aderencia');
+  return { baseRows, trendRows };
+}
+
+/* ============================================================
+   Interpretação das tabelas -> registros brutos + trend
+   ============================================================ */
+function findHeaderRow(rows, mustInclude){
+  for(let i=0;i<Math.min(rows.length,12);i++){
+    const normed = rows[i].map(norm);
+    if(mustInclude.every(k => normed.some(c => c.includes(k)))) return i;
+  }
+  return -1;
+}
+function colIndex(headerRow, matches){
+  const normed = headerRow.map(norm);
+  for(const m of matches){
+    const idx = normed.findIndex(c => c.includes(m));
+    if(idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function buildRawFromRows(baseRows, trendRows){
+  const baseHeaderIdx = findHeaderRow(baseRows, ['data','célula']) !== -1
+    ? findHeaderRow(baseRows, ['data','célula'])
+    : findHeaderRow(baseRows, ['data','celula']);
+  if(baseHeaderIdx === -1) throw new Error('cabeçalho da aba "Base de dados" não foi reconhecido (esperado colunas Data e Célula).');
+  const baseHeader = baseRows[baseHeaderIdx];
+  const cData = colIndex(baseHeader, ['data']);
+  const cCel = colIndex(baseHeader, ['célula','celula']);
+  const cSeg = colIndex(baseHeader, ['segmento']);
+  const cItem = colIndex(baseHeader, ['item']);
+  const cPlan = colIndex(baseHeader, ['planejado']);
+  const cReal = colIndex(baseHeader, ['realizado']);
+  const cObs = colIndex(baseHeader, ['obs']);
+  if(cData===-1 || cCel===-1 || cPlan===-1 || cReal===-1){
+    throw new Error('não encontrei todas as colunas esperadas (Data, Célula, Planejado, Realizado) na aba "Base de dados".');
+  }
+
+  const registros = [];
+  for(let i=baseHeaderIdx+1;i<baseRows.length;i++){
+    const r = baseRows[i];
+    if(!r || r[cData]===null || r[cData]===undefined) continue;
+    const iso = excelSerialToISO(r[cData]);
+    if(!iso) continue;
+    const plan = toNum(r[cPlan]), real = toNum(r[cReal]);
+    if(plan<=0 && real<=0) continue;
+    const obsVal = (cObs!==-1 && r[cObs]!==null && r[cObs]!==undefined) ? String(r[cObs]).trim() : '';
+    registros.push({
+      data: iso,
+      celula: (r[cCel]!==null && r[cCel]!==undefined) ? String(r[cCel]).trim() : 'N/D',
+      segmento: (cSeg!==-1 && r[cSeg]!==null && r[cSeg]!==undefined) ? String(r[cSeg]).trim() : 'N/D',
+      item: (cItem!==-1 && r[cItem]!==null && r[cItem]!==undefined) ? String(r[cItem]).trim() : null,
+      planejado: plan, realizado: real, obs: obsVal
+    });
+  }
+  if(!registros.length) throw new Error('nenhum registro válido foi encontrado na aba "Base de dados".');
+
+  let trend = [];
+  if(trendRows && trendRows.length){
+    const tHeaderIdx = findHeaderRow(trendRows, ['data','aderência']) !== -1
+      ? findHeaderRow(trendRows, ['data','aderência'])
+      : findHeaderRow(trendRows, ['data','aderencia']);
+    if(tHeaderIdx !== -1){
+      const tHeader = trendRows[tHeaderIdx];
+      const tData = colIndex(tHeader, ['data']);
+      const tHprog = colIndex(tHeader, ['hrs programadas','horas programadas']);
+      const tHreal = colIndex(tHeader, ['hrs realizadas','horas realizadas']);
+      const tAder = colIndex(tHeader, ['aderência','aderencia']);
+      const tProd = colIndex(tHeader, ['produtividade']);
+      const tMeta = colIndex(tHeader, ['meta']);
+      const tAbs = colIndex(tHeader, ['absenteismo','absenteísmo']);
+      for(let i=tHeaderIdx+1;i<trendRows.length;i++){
+        const r = trendRows[i];
+        if(!r || r[tData]===null || r[tData]===undefined) continue;
+        const iso = excelSerialToISO(r[tData]);
+        if(!iso) continue;
+        trend.push({
+          data: iso,
+          hprog: tHprog!==-1 ? toNum(r[tHprog]) : 0,
+          hreal: tHreal!==-1 ? toNum(r[tHreal]) : 0,
+          aderencia: tAder!==-1 ? toNum(r[tAder]) : 0,
+          produtividade: tProd!==-1 ? toNum(r[tProd]) : 0,
+          meta: tMeta!==-1 ? toNum(r[tMeta]) : 0.89,
+          absenteismo: tAbs!==-1 ? toNum(r[tAbs]) : 0
+        });
+      }
+    }
+  }
+  if(!trend.length){
+    const byDate = {};
+    registros.forEach(r=>{
+      if(!byDate[r.data]) byDate[r.data] = { plan:0, real:0 };
+      byDate[r.data].plan += r.planejado; byDate[r.data].real += r.realizado;
+    });
+    trend = Object.entries(byDate).map(([iso,v])=>({
+      data: iso, hprog:0, hreal:0, aderencia: v.plan? v.real/v.plan:0, produtividade:0, meta:0.89, absenteismo:0
+    }));
+  }
+
+  return { registros, trend };
+}
+
+/* ============================================================
+   Firebase — persistência em nuvem (mesmo projeto do painel de Movimentação)
+   Estratégia: 1 documento por dia em cada coleção. Ao subir uma planilha,
+   os dias contidos nela SEMPRE sobrescrevem o que já existia (reconhece
+   alteração e ajusta) e os dias que ainda não tinham registro são
+   simplesmente adicionados. Dias antigos que não aparecem na nova
+   planilha são preservados (não são apagados).
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBcANPQNnGSvfsihZ_1qRcqbvf1y-9zXGA",
+  authDomain: "linha-794e3.firebaseapp.com",
+  projectId: "linha-794e3",
+  storageBucket: "linha-794e3.firebasestorage.app",
+  messagingSenderId: "185782859187",
+  appId: "1:185782859187:web:d13cc5a730bc9e025287c6"
+};
+const REG_COLLECTION = 'aderencia_montagem_registros'; // 1 doc por dia: {dateKey, rows:[...]}
+const TREND_COLLECTION = 'aderencia_montagem_trend';   // 1 doc por dia: {dateKey, ...campos da tendência}
+const LOCAL_CACHE_KEY = 'aderencia_montagem_cache';
+let db = null;
+let firebaseReady = false;
+let lastSyncSource = null; // 'cloud' | 'local' | 'demo'
+let lastSyncAt = null;
+
+function initFirebase(){
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    return firebase.auth().signInAnonymously().then(()=>{ firebaseReady = true; });
+  }catch(err){
+    firebaseReady = false;
+    return Promise.reject(err);
+  }
+}
+
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')), ms))
+  ]);
+}
+
+function cacheLocally(raw){
+  try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(raw)); }catch(err){}
+}
+function loadFromLocalCache(){
+  try{
+    const s = localStorage.getItem(LOCAL_CACHE_KEY);
+    if(!s) return null;
+    const parsed = JSON.parse(s);
+    if(parsed && Array.isArray(parsed.registros) && parsed.registros.length) return parsed;
+    return null;
+  }catch(err){ return null; }
+}
+
+/* Grava/atualiza no Firestore apenas os dias presentes em `raw` (upsert por dia) */
+async function upsertDaysToFirebase(raw){
+  if(!db) throw new Error('Firebase indisponível');
+  const regByDate = {};
+  raw.registros.forEach(r=>{
+    if(!regByDate[r.data]) regByDate[r.data] = [];
+    regByDate[r.data].push(r);
+  });
+  const trendByDate = {};
+  (raw.trend||[]).forEach(t=>{ trendByDate[t.data] = t; });
+
+  const dateKeys = new Set([...Object.keys(regByDate), ...Object.keys(trendByDate)]);
+  const batch = db.batch();
+  dateKeys.forEach(dateKey=>{
+    const regRef = db.collection(REG_COLLECTION).doc(dateKey);
+    batch.set(regRef, {
+      dateKey,
+      rows: regByDate[dateKey] || [],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    if(trendByDate[dateKey]){
+      const trendRef = db.collection(TREND_COLLECTION).doc(dateKey);
+      batch.set(trendRef, Object.assign({ dateKey }, trendByDate[dateKey], {
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }));
+    }
+  });
+  await batch.commit();
+  return dateKeys;
+}
+
+/* Busca todos os dias já salvos na nuvem e monta {registros, trend} */
+async function fetchAllFromFirebase(){
+  const [regSnap, trendSnap] = await Promise.all([
+    db.collection(REG_COLLECTION).get(),
+    db.collection(TREND_COLLECTION).get()
+  ]);
+  if(regSnap.empty && trendSnap.empty) return null;
+  let registros = [];
+  regSnap.forEach(doc=>{
+    const d = doc.data();
+    if(Array.isArray(d.rows)) registros = registros.concat(d.rows);
+  });
+  const trend = [];
+  trendSnap.forEach(doc=>{
+    const d = Object.assign({}, doc.data());
+    delete d.updatedAt;
+    trend.push(d);
+  });
+  trend.sort((a,b)=> a.data < b.data ? -1 : (a.data > b.data ? 1 : 0));
+  return { registros, trend };
+}
+
+/* Mescla dados novos sobre os existentes: dias que aparecem em `novo`
+   sobrescrevem os antigos; dias que não aparecem são preservados */
+function mergeRawByDate(existingRaw, novoRaw){
+  const newDates = new Set(novoRaw.registros.map(r=>r.data));
+  const keptRegistros = (existingRaw.registros||[]).filter(r=>!newDates.has(r.data));
+  const registros = keptRegistros.concat(novoRaw.registros);
+
+  const newTrendDates = new Set((novoRaw.trend||[]).map(t=>t.data));
+  const keptTrend = (existingRaw.trend||[]).filter(t=>!newTrendDates.has(t.data));
+  const trend = keptTrend.concat(novoRaw.trend||[]).sort((a,b)=> a.data < b.data ? -1 : (a.data > b.data ? 1 : 0));
+
+  return { registros, trend };
+}
+
+function updateSyncBadge(){
+  const el = document.getElementById('syncBadge');
+  const dot = document.getElementById('syncDot');
+  if(dot) dot.className = 'sync-dot' + (lastSyncSource ? ' '+lastSyncSource : '');
+  if(!el) return;
+  if(!lastSyncSource){ el.textContent = ''; return; }
+  const icon = lastSyncSource === 'cloud' ? '☁️' : (lastSyncSource === 'local' ? '💾' : '');
+  const label = lastSyncSource === 'cloud' ? 'sincronizado (todos os PCs)'
+    : (lastSyncSource === 'local' ? 'somente neste PC (offline)' : '');
+  const time = lastSyncAt ? lastSyncAt.toLocaleString('pt-BR') : '';
+  el.innerHTML = label ? `${icon} ${label}${time ? ' · '+time : ''}` : '';
+}
+
+/* ============================================================
+   Upload
+   ============================================================ */
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.className = 'upload-status';
+  statusEl.textContent = 'Lendo arquivo…';
+
+  const reader = new FileReader();
+  reader.onload = async function(evt){
+    try{
+      const buf = evt.target.result;
+      const { baseRows, trendRows } = await parseXlsxArrayBuffer(buf);
+      if(!baseRows) throw new Error('aba "Base de dados" não encontrada no arquivo.');
+      const novoRaw = buildRawFromRows(baseRows, trendRows);
+
+      // Mescla localmente: dias da planilha nova sobrescrevem, dias ausentes são preservados
+      RAW = mergeRawByDate(RAW, novoRaw);
+      cacheLocally(RAW);
+      setupDateInputs();
+      renderAll();
+
+      // Tenta gravar na nuvem só os dias que vieram nesta planilha (upsert por dia)
+      try{
+        if(!firebaseReady) await withTimeout(initFirebase(), 6000);
+        const diasAtualizados = await withTimeout(upsertDaysToFirebase(novoRaw), 12000);
+        lastSyncSource = 'cloud';
+        lastSyncAt = new Date();
+        updateSyncBadge();
+        statusEl.className = 'upload-status ok';
+        statusEl.textContent = `"${file.name}" carregado — ${diasAtualizados.size} dia(s) reconhecido(s)/atualizado(s) e sincronizado(s) na nuvem.`;
+      }catch(cloudErr){
+        console.error('Falha ao sincronizar com Firebase:', cloudErr);
+        lastSyncSource = 'local';
+        lastSyncAt = new Date();
+        updateSyncBadge();
+        statusEl.className = 'upload-status ok';
+        statusEl.textContent = `"${file.name}" carregado. Não foi possível sincronizar com a nuvem agora — dados salvos apenas neste PC.`;
+      }
+    }catch(err){
+      statusEl.className = 'upload-status err';
+      statusEl.textContent = 'Erro ao importar: ' + err.message;
+      console.error(err);
+    }
+  };
+  reader.onerror = function(){
+    statusEl.className = 'upload-status err';
+    statusEl.textContent = 'Não foi possível ler o arquivo selecionado.';
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+/* ============================================================
+   PWA — mantém o app instalável (ícone/menu nativo do navegador)
+   e disponível offline via service worker
+   ============================================================ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+(async function boot(){
+  const statusEl = document.getElementById('uploadStatus');
+  try{
+    await withTimeout(initFirebase(), 6000);
+    const cloudRaw = await withTimeout(fetchAllFromFirebase(), 12000);
+    if(cloudRaw && cloudRaw.registros.length){
+      RAW = cloudRaw;
+      cacheLocally(RAW);
+      lastSyncSource = 'cloud';
+      lastSyncAt = new Date();
+      statusEl.textContent = 'Dados carregados da nuvem (sincronizado com todos os PCs).';
+    } else {
+      statusEl.textContent = 'Exibindo dados de exemplo — carregue uma planilha para começar a sincronizar.';
+    }
+  }catch(err){
+    console.error('Firebase indisponível no carregamento:', err);
+    const local = loadFromLocalCache();
+    if(local){
+      RAW = local;
+      lastSyncSource = 'local';
+      lastSyncAt = new Date();
+      statusEl.textContent = 'Sem conexão com a nuvem — exibindo última cópia salva neste PC.';
+    } else {
+      statusEl.textContent = 'Sem conexão com a nuvem — exibindo dados de exemplo.';
+    }
+  }
+  updateSyncBadge();
+  try{
+    setupDateInputs();
+    renderAll();
+  }catch(err){
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>
